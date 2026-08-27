@@ -155,3 +155,39 @@ export const login = async (req: Request, res: Response): Promise<any> => {
     return res.status(500).json({ error: "Terjadi kesalahan pada server" });
   }
 };
+
+// Fungsi untuk mengambil data profil (Hanya bisa diakses jika punya Token)
+import { AuthRequest } from "../middleware/authMiddleware"; // Tambahkan import ini di atas jika diperlukan
+
+export const getProfile = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  try {
+    // req.user diisi secara otomatis oleh authMiddleware
+    const { nim, email } = req.user;
+
+    // Ambil data lengkap dari database berdasarkan NIM yang ada di dalam token
+    const userProfile = await prisma.user.findFirst({
+      where: { nim: nim },
+      select: {
+        id: true,
+        nama: true,
+        nim: true,
+        emailInstitusi: true,
+      },
+    });
+
+    if (!userProfile) {
+      return res.status(404).json({ error: "Data pengguna tidak ditemukan." });
+    }
+
+    return res.status(200).json({
+      message: "Berhasil mengambil profil",
+      data: userProfile,
+    });
+  } catch (error) {
+    console.error("Error di getProfile:", error);
+    return res.status(500).json({ error: "Terjadi kesalahan pada server" });
+  }
+};
