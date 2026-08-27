@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url = env("DATABASE_URL")
+}
+
+// 1. Tabel Pengguna (User & Profile)
+model User {
+  id               Int       @id @default(autoincrement())
+  nim              String    @unique 
+  emailInstitusi   String    @unique
+  nama             String
+  jurusan          String?
+  skill            String?   
+  minat            String?
+  pengalamanLomba  String?   @db.Text
+  isVerified       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relasi
+  swipesSent       Swipe[]   @relation("SwipesSent")
+  swipesReceived   Swipe[]   @relation("SwipesReceived")
+  
+  matchesAsUser1   Match[]   @relation("MatchUser1")
+  matchesAsUser2   Match[]   @relation("MatchUser2")
+
+  messagesSent     Message[] @relation("MessageSender")
+
+  reportsMade      Report[]  @relation("Reporter")
+  reportsReceived  Report[]  @relation("Reported")
+
+  blocksMade       Block[]   @relation("Blocker")
+  blocksReceived   Block[]   @relation("Blocked")
+}
+
+// 2. Tabel Kompetisi (Competition Information & Discovery)
+model Competition {
+  id                Int      @id @default(autoincrement())
+  namaLomba         String
+  penyelenggara     String
+  kategori          String
+  deadline          DateTime
+  infoPendaftaran   String   @db.Text
+  ketentuan         String?  @db.Text
+  biayaPendaftaran  String?
+  hadiah            String?
+  tingkatLomba      String?  // Nasional, Internasional, dll.
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// 3. Tabel Swipe & Match (Partner Matching)
+model Swipe {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  targetUserId Int
+  action       String   // "LIKE" atau "PASS"
+  createdAt    DateTime @default(now())
+
+  user       User @relation("SwipesSent", fields: [userId], references: [id], onDelete: Cascade)
+  targetUser User @relation("SwipesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetUserId])
+}
+
+model Match {
+  id           Int       @id @default(autoincrement())
+  user1Id      Int
+  user2Id      Int
+  externalComm String?   // Pilihan media komunikasi eksternal (Line, WhatsApp, dll.)
+  createdAt    DateTime  @default(now())
+
+  user1    User      @relation("MatchUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2    User      @relation("MatchUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([user1Id, user2Id])
+}
+
+// 4. Tabel Chat / Komunikasi setelah Match
+model Message {
+  id        Int      @id @default(autoincrement())
+  matchId   Int
+  senderId  Int
+  pesanTeks String   @db.Text
+  createdAt DateTime @default(now())
+
+  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender User  @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+// 5. Tabel Moderasi (Report & Block)
+model Report {
+  id            Int      @id @default(autoincrement())
+  reporterId    Int
+  reportedId    Int
+  alasanLaporan String   @db.Text
+  createdAt     DateTime @default(now())
+
+  reporter User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User @relation("Reported", fields: [reportedId], references: [id], onDelete: Cascade)
+}
+
+model Block {
+  id        Int      @id @default(autoincrement())
+  blockerId Int
+  blockedId Int
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+}

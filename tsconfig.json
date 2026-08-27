@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2022" /* Versi JavaScript hasil kompilasi */,
+    "module": "commonjs" /* Modul sistem yang dipakai Node.js */,
+    "rootDir": "./src" /* Folder tempat kamu menulis kode TypeScript */,
+    "outDir": "./dist" /* Folder hasil kompilasi (JavaScript) */,
+    "esModuleInterop": true /* Memperbaiki error saat import library bawaan JS */,
+    "forceConsistentCasingInFileNames": true /* Sensitif terhadap huruf besar/kecil di nama file */,
+    "strict": true /* Mengaktifkan mode ketat TypeScript (sangat disarankan) */,
+    "skipLibCheck": true /* Melewati pengecekan error di dalam folder node_modules */
+  },
+  "include": [
+    "src/**/*"
+  ] /* Hanya kompilasi file yang ada di dalam folder src */,
+  "exclude": ["node_modules", "**/*.spec.ts"] /* Abaikan node_modules */
+}
