@@ -175,6 +175,7 @@ export const getProfile = async (
         nama: true,
         nim: true,
         emailInstitusi: true,
+        profile: true,
       },
     });
 
@@ -189,5 +190,97 @@ export const getProfile = async (
   } catch (error) {
     console.error("Error di getProfile:", error);
     return res.status(500).json({ error: "Terjadi kesalahan pada server" });
+  }
+};
+
+// ==========================================
+// 3. FUNGSI KELOLA PROFIL (FR-PM-01, FR-PM-02, FR-PM-03)
+// ==========================================
+export const upsertProfile = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  try {
+    // ID User diambil dari token JWT yang sudah divalidasi oleh middleware (NFR-05, NFR-07)
+    const userId = req.user.userId;
+    const { jurusan, skill, minat, pengalamanLomba } = req.body;
+
+    // Validasi input dasar (NFR-06)
+    if (!jurusan) {
+      return res.status(400).json({ error: "Data jurusan wajib diisi." });
+    }
+
+    // Upsert: Memastikan relasi One-to-One mutlak (NFR-14).
+    // Jika belum ada, jalankan 'create'. Jika sudah ada, jalankan 'update'.
+    const profile = await prisma.profile.upsert({
+      where: { userId: Number(userId) },
+      update: {
+        jurusan,
+        skill: skill || [],
+        minat: minat || [],
+        pengalamanLomba: pengalamanLomba || "",
+      },
+      create: {
+        userId: Number(userId),
+        jurusan,
+        skill: skill || [],
+        minat: minat || [],
+        pengalamanLomba: pengalamanLomba || "",
+      },
+    });
+
+    return res.status(200).json({
+      message: "Data profil berhasil disimpan dan diperbarui.",
+      data: profile,
+    });
+  } catch (error) {
+    console.error("Error di upsertProfile:", error);
+    // Penanganan kegagalan sistem agar tidak merusak data (NFR-15)
+    return res
+      .status(500)
+      .json({ error: "Terjadi kesalahan server saat menyimpan profil." });
+  }
+};
+
+// ==========================================
+// 4. FUNGSI MELIHAT PROFIL PENGGUNA LAIN (FR-PM-04)
+// ==========================================
+export const getPublicProfile = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  try {
+    const targetUserId = parseInt(req.params.id);
+
+    // Validasi parameter ID (NFR-06)
+    if (isNaN(targetUserId)) {
+      return res.status(400).json({ error: "ID pengguna tidak valid." });
+    }
+
+    // Ambil data user beserta profilnya secara read-only
+    const userProfile = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: {
+        nama: true,
+        // Menyembunyikan emailInstitusi untuk menjaga privasi publik
+        profile: true,
+      },
+    });
+
+    if (!userProfile || !userProfile.profile) {
+      return res
+        .status(404)
+        .json({ error: "Profil pengguna tidak ditemukan atau belum diisi." });
+    }
+
+    return res.status(200).json({
+      message: "Berhasil mengambil profil pengguna.",
+      data: userProfile,
+    });
+  } catch (error) {
+    console.error("Error di getPublicProfile:", error);
+    return res
+      .status(500)
+      .json({ error: "Terjadi kesalahan server saat mengambil profil." });
   }
 };
