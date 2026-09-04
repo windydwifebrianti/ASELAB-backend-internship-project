@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 1. Tabel Pengguna (Kredensial & Autentikasi)
+// Tabel Pengguna (Kredensial & Autentikasi)
 model User {
   id             Int       @id @default(autoincrement())
   nim            String    @unique 
@@ -17,19 +17,16 @@ model User {
   isVerified     Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+
   teamsLed    Team[]       @relation("TeamLeader")
   teamMembers TeamMember[]
+  teamSwipes    TeamSwipe[]
+  joinRequests  JoinRequest[]  @relation("UserJoinRequests")
+  notifications Notification[] @relation("UserNotifications")
+  
 
   // Relasi ke Profil (FR-PM-01)
   profile        Profile?
-
-  swipesSent      Swipe[]   @relation("SwipesSent")
-  swipesReceived  Swipe[]   @relation("SwipesReceived")
-  
-  matchesAsUser1  Match[]   @relation("MatchUser1")
-  matchesAsUser2  Match[]   @relation("MatchUser2")
-
-  messagesSent    Message[] @relation("MessageSender")
 
   reportsMade     Report[]  @relation("Reporter")
   reportsReceived Report[]  @relation("Reported")
@@ -38,7 +35,7 @@ model User {
   blocksReceived  Block[]   @relation("Blocked")
 }
 
-// 1.5 Tabel Profil Khusus (FR-PM-02, FR-PM-03, FR-PM-04)
+// Tabel Profil Khusus (FR-PM-02, FR-PM-03, FR-PM-04)
 model Profile {
   id              Int      @id @default(autoincrement())
   userId          Int      @unique // Menjamin relasi mutlak 1:1 (NFR-14)
@@ -51,7 +48,7 @@ model Profile {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// 2. Tabel Kompetisi (Competition Information & Discovery)
+// Tabel Kompetisi (Competition Information & Discovery)
 model Competition {
   id               Int      @id @default(autoincrement())
   namaLomba        String
@@ -67,47 +64,7 @@ model Competition {
   updatedAt        DateTime @updatedAt
 }
 
-// 3. Tabel Swipe & Match (Partner Matching)
-model Swipe {
-  id           Int      @id @default(autoincrement())
-  userId       Int
-  targetUserId Int
-  action       String   
-  createdAt    DateTime @default(now())
-
-  user       User @relation("SwipesSent", fields: [userId], references: [id], onDelete: Cascade)
-  targetUser User @relation("SwipesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, targetUserId])
-}
-
-model Match {
-  id           Int      @id @default(autoincrement())
-  user1Id      Int
-  user2Id      Int
-  externalComm String?   
-  createdAt    DateTime @default(now())
-
-  user1    User      @relation("MatchUser1", fields: [user1Id], references: [id], onDelete: Cascade)
-  user2    User      @relation("MatchUser2", fields: [user2Id], references: [id], onDelete: Cascade)
-  messages Message[]
-
-  @@unique([user1Id, user2Id])
-}
-
-// 4. Tabel Chat / Komunikasi setelah Match
-model Message {
-  id        Int      @id @default(autoincrement())
-  matchId   Int
-  senderId  Int
-  pesanTeks String   @db.Text
-  createdAt DateTime @default(now())
-
-  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  sender User  @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-}
-
-// 5. Tabel Moderasi (Report & Block)
+// Tabel Moderasi (Report & Block)
 model Report {
   id            Int      @id @default(autoincrement())
   reporterId    Int
@@ -143,6 +100,8 @@ model Team {
 
   leader          User         @relation("TeamLeader", fields: [leaderId], references: [id], onDelete: Restrict)
   members         TeamMember[] 
+  swipes        TeamSwipe[]
+  joinRequests  JoinRequest[]  @relation("TeamJoinRequests")
 }
 
 model TeamMember {
@@ -157,4 +116,46 @@ model TeamMember {
 
   // NFR-14: Memastikan satu orang tidak terdaftar ganda di tim yang sama
   @@unique([teamId, userId]) 
+}
+
+// Tabel Swipe Calon Tim (FR-MTC-06)
+model TeamSwipe {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  teamId    Int
+  action    String   // Berisi "LIKE" atau "PASS"
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId]) // NFR-14: Mencegah user melakukan swipe ganda pada tim yang sama
+}
+
+// Tabel Permintaan Bergabung / Join Request (FR-MTC-07, 08, 09)
+model JoinRequest {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  teamId    Int
+  status    String   @default("PENDING") // "PENDING", "ACCEPTED", "REJECTED"
+  pesan     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
+  team      Team     @relation("TeamJoinRequests", fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId]) // NFR-14: Mencegah spam Join Request
+}
+
+// Tabel Notifikasi (FR-MTC-10)
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      // Penerima notifikasi
+  title     String
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
 }
