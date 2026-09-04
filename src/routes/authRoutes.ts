@@ -4,7 +4,7 @@ import {
   login,
   getProfile,
   upsertProfile,
-  getPublicProfil,
+  getPublicProfile,
 } from "../controllers/authController";
 import { verifyToken } from "../middleware/authMiddleware";
 
