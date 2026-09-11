@@ -4,9 +4,7 @@ import { AuthRequest } from "../middleware/authMiddleware";
 
 const prisma = new PrismaClient();
 
-// ==========================================
 // 1. MEMBUAT TIM (FR-TM-01, FR-TM-02, FR-TM-03)
-// ==========================================
 export const createTeam = async (
   req: AuthRequest,
   res: Response,
@@ -56,9 +54,7 @@ export const createTeam = async (
   }
 };
 
-// ==========================================
 // 2. MENGUBAH INFO TIM (FR-TM-04)
-// ==========================================
 export const updateTeam = async (
   req: AuthRequest,
   res: Response,
@@ -99,9 +95,7 @@ export const updateTeam = async (
   }
 };
 
-// ==========================================
 // 3. MENGHAPUS TIM (FR-TM-05)
-// ==========================================
 export const deleteTeam = async (
   req: AuthRequest,
   res: Response,
@@ -134,9 +128,7 @@ export const deleteTeam = async (
   }
 };
 
-// ==========================================
 // 4. MELIHAT DETAIL TIM & ANGGOTA (FR-TM-06, FR-TM-07)
-// ==========================================
 export const getTeamDetail = async (
   req: AuthRequest,
   res: Response,
@@ -144,7 +136,6 @@ export const getTeamDetail = async (
   try {
     const teamId = parseInt(req.params.id);
 
-    // Mengambil data tim beserta daftar anggotanya (NFR-01: Indexing ID menjamin < 3 detik)
     const team = await prisma.team.findUnique({
       where: { id: teamId },
       include: {

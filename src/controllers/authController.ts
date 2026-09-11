@@ -6,7 +6,6 @@ import { cekStatusMahasiswa } from "../utils/nimfinder";
 
 const prisma = new PrismaClient();
 
-// Fungsi bantuan untuk memverifikasi Token SSO ke Microsoft
 const verifyMicrosoftToken = async (ssoToken: string) => {
   const msResponse = await axios.get("https://graph.microsoft.com/v1.0/me", {
     headers: { Authorization: `Bearer ${ssoToken}` },
@@ -14,9 +13,7 @@ const verifyMicrosoftToken = async (ssoToken: string) => {
   return msResponse.data.mail || msResponse.data.userPrincipalName;
 };
 
-// ==========================================
 // 1. FUNGSI REGISTER
-// ==========================================
 export const register = async (req: Request, res: Response): Promise<any> => {
   try {
     // Nama dan NIM tetap diinput manual, Token sebagai pengganti Password
@@ -96,9 +93,8 @@ export const register = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
-// ==========================================
 // 2. FUNGSI LOGIN
-// ==========================================
+
 export const login = async (req: Request, res: Response): Promise<any> => {
   try {
     // User login dengan NIM dan Token SSO
@@ -156,18 +152,15 @@ export const login = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
-// Fungsi untuk mengambil data profil (Hanya bisa diakses jika punya Token)
-import { AuthRequest } from "../middleware/authMiddleware"; // Tambahkan import ini di atas jika diperlukan
+import { AuthRequest } from "../middleware/authMiddleware";
 
 export const getProfile = async (
   req: AuthRequest,
   res: Response,
 ): Promise<any> => {
   try {
-    // req.user diisi secara otomatis oleh authMiddleware
     const { nim, email } = req.user;
 
-    // Ambil data lengkap dari database berdasarkan NIM yang ada di dalam token
     const userProfile = await prisma.user.findFirst({
       where: { nim: nim },
       select: {
@@ -193,9 +186,7 @@ export const getProfile = async (
   }
 };
 
-// ==========================================
 // 3. FUNGSI KELOLA PROFIL (FR-PM-01, FR-PM-02, FR-PM-03)
-// ==========================================
 export const upsertProfile = async (
   req: AuthRequest,
   res: Response,
@@ -211,7 +202,6 @@ export const upsertProfile = async (
     }
 
     // Upsert: Memastikan relasi One-to-One mutlak (NFR-14).
-    // Jika belum ada, jalankan 'create'. Jika sudah ada, jalankan 'update'.
     const profile = await prisma.profile.upsert({
       where: { userId: Number(userId) },
       update: {
@@ -242,9 +232,7 @@ export const upsertProfile = async (
   }
 };
 
-// ==========================================
 // 4. FUNGSI MELIHAT PROFIL PENGGUNA LAIN (FR-PM-04)
-// ==========================================
 export const getPublicProfile = async (
   req: Request,
   res: Response,

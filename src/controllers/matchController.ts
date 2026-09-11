@@ -4,9 +4,7 @@ import { AuthRequest } from "../middleware/authMiddleware";
 
 const prisma = new PrismaClient();
 
-// ==========================================
 // 1. CARI & REKOMENDASI TIM (FR-MTC-01, 02, 03, 04)
-// ==========================================
 export const getTeamRecommendations = async (
   req: AuthRequest,
   res: Response,
@@ -15,7 +13,6 @@ export const getTeamRecommendations = async (
     const userId = req.user.userId;
     const { keyword, kompetisi } = req.query; // Fitur Filter (FR-MTC-02)
 
-    // Menyusun filter pencarian dinamis
     const filterConditions: any = {};
     if (keyword) {
       filterConditions.OR = [
@@ -29,14 +26,14 @@ export const getTeamRecommendations = async (
     const teams = await prisma.team.findMany({
       where: {
         ...filterConditions,
-        leaderId: { not: userId }, // Jangan rekomendasikan tim miliknya sendiri
-        swipes: { none: { userId: userId } }, // Hilangkan tim yang sudah di-PASS/LIKE
-        members: { none: { userId: userId } }, // Hilangkan tim yang sudah dia ikuti
+        leaderId: { not: userId },
+        swipes: { none: { userId: userId } },
+        members: { none: { userId: userId } },
       },
       include: {
         leader: { select: { nama: true } },
       },
-      take: 20, // NFR-02: Batasi paginasi agar response time di bawah 3 detik
+      take: 20,
     });
 
     return res
@@ -47,9 +44,7 @@ export const getTeamRecommendations = async (
   }
 };
 
-// ==========================================
 // 2. SWIPE (LIKE / PASS) (FR-MTC-06)
-// ==========================================
 export const swipeTeam = async (
   req: AuthRequest,
   res: Response,
@@ -78,9 +73,7 @@ export const swipeTeam = async (
   }
 };
 
-// ==========================================
 // 3. MENGIRIM JOIN REQUEST & NOTIFIKASI (FR-MTC-07, FR-MTC-10)
-// ==========================================
 export const createJoinRequest = async (
   req: AuthRequest,
   res: Response,
@@ -92,7 +85,6 @@ export const createJoinRequest = async (
     const team = await prisma.team.findUnique({ where: { id: teamId } });
     if (!team) return res.status(404).json({ error: "Tim tidak ditemukan." });
 
-    // NFR-14: Gunakan transaksi agar pembuatan request dan notifikasi tidak putus di tengah jalan
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.joinRequest.create({
         data: { userId, teamId, pesan },
@@ -122,9 +114,7 @@ export const createJoinRequest = async (
   }
 };
 
-// ==========================================
 // 4. KELOLA JOIN REQUEST OLEH LEADER (FR-MTC-08, FR-MTC-10)
-// ==========================================
 export const manageJoinRequest = async (
   req: AuthRequest,
   res: Response,
@@ -189,9 +179,7 @@ export const manageJoinRequest = async (
   }
 };
 
-// ==========================================
 // 5. MELIHAT STATUS JOIN REQUEST (FR-MTC-09)
-// ==========================================
 export const getMyJoinRequests = async (
   req: AuthRequest,
   res: Response,

@@ -9,7 +9,6 @@ import {
 
 const router = Router();
 
-// Semua rute wajib menyertakan token autentikasi (NFR-05)
 router.post("/", verifyToken, createTeam);
 router.put("/:id", verifyToken, updateTeam);
 router.delete("/:id", verifyToken, deleteTeam);
