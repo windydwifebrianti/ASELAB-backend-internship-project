@@ -5,6 +5,7 @@ import {
   getProfile,
   upsertProfile,
   getPublicProfile,
+  requestOtp,
 } from "../controllers/authController";
 import { verifyToken } from "../middleware/authMiddleware";
 
@@ -17,5 +18,7 @@ router.get("/profile", verifyToken, getProfile);
 
 router.post("/profile", verifyToken, upsertProfile);
 router.get("/profile/:id", verifyToken, getPublicProfile);
+
+router.post("/request-otp", requestOtp);
 
 export default router;
