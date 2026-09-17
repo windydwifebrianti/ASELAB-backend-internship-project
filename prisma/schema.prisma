@@ -159,3 +159,12 @@ model Notification {
 
   user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// Tabel Penyimpanan OTP (Sementara)
+model Otp {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  kodeOtp   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
