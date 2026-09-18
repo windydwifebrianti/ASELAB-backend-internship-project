@@ -1,18 +1,10 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
-// import axios from "axios";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { cekStatusMahasiswa } from "../utils/nimfinder";
 
 const prisma = new PrismaClient();
-
-// const verifyMicrosoftToken = async (ssoToken: string) => {
-//   const msResponse = await axios.get("https://graph.microsoft.com/v1.0/me", {
-//     headers: { Authorization: `Bearer ${ssoToken}` },
-//   });
-//   return msResponse.data.mail || msResponse.data.userPrincipalName;
-// };
 
 // Konfigurasi Email
 const transporter = nodemailer.createTransport({
