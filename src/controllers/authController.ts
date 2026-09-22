@@ -422,41 +422,39 @@ export const register = async (
 
 export const login = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { emailInstitusi, otp } = req.body;
+    const { emailInstitusi, password } = req.body;
 
-    if (!emailInstitusi || !otp) {
+    if (!emailInstitusi || !password) {
       return res.status(400).json({
-        error: "Email institusi dan OTP wajib dikirim.",
+        error: "Email institusi dan password wajib dikirim.",
       });
     }
 
     const normalizedEmail = String(emailInstitusi).trim().toLowerCase();
-    const normalizedOtp = String(otp).trim();
+    const normalizedPassword = String(password).trim();
 
-    const validOtp = await prisma.otp.findFirst({
+    const isValidUser = await prisma.user.findFirst({
       where: {
-        email: normalizedEmail,
-        kodeOtp: normalizedOtp,
+        emailInstitusi: normalizedEmail,
       },
     });
-
-    if (!validOtp) {
-      return res.status(400).json({
-        error: "OTP salah.",
-      });
-    }
-
-    if (validOtp.expiresAt < new Date()) {
-      return res.status(400).json({
-        error: "OTP kedaluwarsa.",
-      });
-    }
 
     const user = await prisma.user.findFirst({
       where: {
         emailInstitusi: normalizedEmail,
       },
     });
+
+    // validasi password
+    const isPasswordValid = user
+      ? await bcrypt.compare(normalizedPassword, user.password!)
+      : false;
+
+    if (!isValidUser || !isPasswordValid) {
+      return res.status(401).json({
+        error: "Email institusi atau password salah.",
+      });
+    }
 
     if (!user) {
       return res.status(401).json({
@@ -485,12 +483,6 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
         expiresIn: "1d",
       },
     );
-
-    await prisma.otp.delete({
-      where: {
-        email: normalizedEmail,
-      },
-    });
 
     return res.status(200).json({
       message: "Login berhasil!",
