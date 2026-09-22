@@ -1,37 +1,37 @@
 /*
   Warnings:
 
-  - You are about to drop the `match` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `message` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `swipe` table. If the table is not empty, all the data it contains will be lost.
+    - You are about to drop the `Match` table. If the table is not empty, all the data it contains will be lost.
+    - You are about to drop the `Message` table. If the table is not empty, all the data it contains will be lost.
+    - You are about to drop the `Swipe` table. If the table is not empty, all the data it contains will be lost.
 
 */
 -- DropForeignKey
-ALTER TABLE `match` DROP FOREIGN KEY `Match_user1Id_fkey`;
+ALTER TABLE `Match` DROP FOREIGN KEY `Match_user1Id_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `match` DROP FOREIGN KEY `Match_user2Id_fkey`;
+ALTER TABLE `Match` DROP FOREIGN KEY `Match_user2Id_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `message` DROP FOREIGN KEY `Message_matchId_fkey`;
+ALTER TABLE `Message` DROP FOREIGN KEY `Message_matchId_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `message` DROP FOREIGN KEY `Message_senderId_fkey`;
+ALTER TABLE `Message` DROP FOREIGN KEY `Message_senderId_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `swipe` DROP FOREIGN KEY `Swipe_targetUserId_fkey`;
+ALTER TABLE `Swipe` DROP FOREIGN KEY `Swipe_targetUserId_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `swipe` DROP FOREIGN KEY `Swipe_userId_fkey`;
+ALTER TABLE `Swipe` DROP FOREIGN KEY `Swipe_userId_fkey`;
 
 -- DropTable
-DROP TABLE `match`;
+DROP TABLE `Match`;
 
 -- DropTable
-DROP TABLE `message`;
+DROP TABLE `Message`;
 
 -- DropTable
-DROP TABLE `swipe`;
+DROP TABLE `Swipe`;
 
 -- CreateTable
 CREATE TABLE `TeamSwipe` (

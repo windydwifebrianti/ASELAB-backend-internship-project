@@ -1,14 +1,14 @@
 /*
   Warnings:
 
-  - You are about to drop the column `jurusan` on the `user` table. All the data in the column will be lost.
-  - You are about to drop the column `minat` on the `user` table. All the data in the column will be lost.
-  - You are about to drop the column `pengalamanLomba` on the `user` table. All the data in the column will be lost.
-  - You are about to drop the column `skill` on the `user` table. All the data in the column will be lost.
+  - You are about to drop the column `jurusan` on the `User` table. All the data in the column will be lost.
+  - You are about to drop the column `minat` on the `User` table. All the data in the column will be lost.
+  - You are about to drop the column `pengalamanLomba` on the `User` table. All the data in the column will be lost.
+  - You are about to drop the column `skill` on the `User` table. All the data in the column will be lost.
 
 */
 -- AlterTable
-ALTER TABLE `user` DROP COLUMN `jurusan`,
+ALTER TABLE `User` DROP COLUMN `jurusan`,
     DROP COLUMN `minat`,
     DROP COLUMN `pengalamanLomba`,
     DROP COLUMN `skill`,

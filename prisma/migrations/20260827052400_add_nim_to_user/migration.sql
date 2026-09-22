@@ -6,7 +6,7 @@
 
 */
 -- AlterTable
-ALTER TABLE `user` ADD COLUMN `nim` VARCHAR(191) NOT NULL;
+ALTER TABLE `User` ADD COLUMN `nim` VARCHAR(191) NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX `User_nim_key` ON `User`(`nim`);

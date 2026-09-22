@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TempRegistrationStatus {
+  PENDING
+  FAILED
+}
+
 // Tabel Pengguna (Kredensial & Autentikasi)
 model User {
   id             Int       @id @default(autoincrement())
@@ -33,6 +38,22 @@ model User {
 
   blocksMade      Block[]   @relation("Blocker")
   blocksReceived  Block[]   @relation("Blocked")
+}
+
+model TempRegistration {
+  id         Int                    @id @default(autoincrement())
+  nama       String
+  nim        String                 @unique
+  email      String                 @unique
+  password   String
+  token      String                 @unique
+  code       String
+  attemptCode    Int                    @default(0)
+  attemptResend  Int                    @default(0)
+  status     TempRegistrationStatus @default(PENDING)
+  expiresAt  DateTime
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
 }
 
 // Tabel Profil Khusus (FR-PM-02, FR-PM-03, FR-PM-04)

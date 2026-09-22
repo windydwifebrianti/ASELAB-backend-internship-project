@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import { cekStatusMahasiswa } from "../utils/nimfinder";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
-import { cekStatusMahasiswa } from "../utils/nimfinder";
+import bcrypt from "bcrypt";
+import crypto from "crypto";
+import { AuthRequest } from "../middleware/authMiddleware";
 
 const prisma = new PrismaClient();
 
-// Konfigurasi Email
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -15,148 +17,419 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// 1. Fungsi Meminta OTP ke Email Pengguna
-export const requestOtp = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { emailInstitusi } = req.body;
+const generateOtp = (): string => {
+  return crypto.randomInt(100000, 1000000).toString();
+};
 
-    if (!emailInstitusi) {
-      return res.status(400).json({ error: "Email wajib diisi!" });
+const generateRegistrationToken = (): string => {
+  return crypto.randomBytes(32).toString("hex");
+};
+
+const getOtpExpiration = (): Date => {
+  return new Date(Date.now() + 5 * 60 * 1000);
+};
+
+const isInstitutionEmail = (email: string): boolean => {
+  return email.endsWith(".ac.id") || email.endsWith(".edu");
+};
+
+const sendRegistrationOtp = async (
+  email: string,
+  otp: string,
+): Promise<void> => {
+  await transporter.sendMail({
+    from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "Kode Verifikasi OTP Anda",
+    html: `<p>Kode OTP Anda adalah: <b>${otp}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
+  });
+};
+
+export const requestRegisterOtp = async (
+  req: Request,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const { nama, nim, emailInstitusi, password } = req.body;
+
+    if (!nama || !nim || !emailInstitusi || !password) {
+      return res.status(400).json({
+        error: "Nama, NIM, email institusi, dan password wajib diisi.",
+      });
     }
 
-    // Cek apakah email berakhiran .ac.id atau .edu
-    const isEmailKampus =
-      emailInstitusi.endsWith(".ac.id") || emailInstitusi.endsWith(".edu");
-    if (!isEmailKampus) {
+    const normalizedNama = String(nama).trim();
+    const normalizedNim = String(nim).trim();
+    const normalizedEmail = String(emailInstitusi).trim().toLowerCase();
+    const normalizedPassword = String(password);
+
+    if (
+      !normalizedNama ||
+      !normalizedNim ||
+      !normalizedEmail ||
+      !normalizedPassword
+    ) {
+      return res.status(400).json({
+        error: "Nama, NIM, email institusi, dan password wajib diisi.",
+      });
+    }
+
+    if (!isInstitutionEmail(normalizedEmail)) {
       return res.status(403).json({
         error: "Harap gunakan email institusi pendidikan (.ac.id atau .edu).",
       });
     }
 
-    // Generate 6 digit angka acak
-    const kodeOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 menit
-
-    // Simpan ke database (tabel Otp)
-    await prisma.otp.upsert({
-      where: { email: emailInstitusi },
-      update: { kodeOtp, expiresAt },
-      create: { email: emailInstitusi, kodeOtp, expiresAt },
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ emailInstitusi: normalizedEmail }, { nim: normalizedNim }],
+      },
+      select: {
+        id: true,
+      },
     });
 
-    // Kirim email
+    if (existingUser) {
+      return res.status(409).json({
+        error: "Akun sudah terdaftar. Silakan langsung login.",
+      });
+    }
+
+    const existingTemp = await prisma.tempRegistration.findUnique({
+      where: {
+        email: normalizedEmail,
+      },
+    });
+
+    if (existingTemp) {
+      if (existingTemp.status === "FAILED") {
+        return res.status(429).json({
+          error: "Sesi registrasi sudah diblokir.",
+        });
+      }
+
+      if (existingTemp.attemptCode >= 3) {
+        return res.status(429).json({
+          error: "Percobaan OTP sudah mencapai batas maksimum.",
+        });
+      }
+
+      if (existingTemp.attemptResend >= 3) {
+        return res.status(429).json({
+          error: "Permintaan OTP sudah mencapai batas maksimum.",
+        });
+      }
+
+      const kodeOtp = generateOtp();
+      const expiresAt = getOtpExpiration();
+
+      await prisma.tempRegistration.update({
+        where: {
+          id: existingTemp.id,
+        },
+        data: {
+          code: kodeOtp,
+          expiresAt,
+          attemptResend: {
+            increment: 1,
+          },
+        },
+      });
+
+      await sendRegistrationOtp(existingTemp.email, kodeOtp);
+
+      return res.status(200).json({
+        message: "OTP berhasil dikirim ulang ke email Anda.",
+        token: existingTemp.token,
+        isResend: true,
+      });
+    }
+
+    let dataMahasiswa;
+
+    try {
+      dataMahasiswa = await cekStatusMahasiswa(normalizedNim);
+
+      if (dataMahasiswa.total === 0) {
+        return res.status(400).json({
+          error: "NIM tidak ditemukan di sistem.",
+        });
+      }
+
+      const mahasiswa = dataMahasiswa.results[0];
+
+      if (!mahasiswa.status.toLowerCase().includes("aktif")) {
+        return res.status(400).json({
+          error: "Status Anda bukan Mahasiswa Aktif.",
+        });
+      }
+    } catch (apiError: any) {
+      return res.status(502).json({
+        error: apiError.message || "Gagal memvalidasi data mahasiswa.",
+      });
+    }
+
+    const kodeOtp = generateOtp();
+    const expiresAt = getOtpExpiration();
+    const registrationToken = generateRegistrationToken();
+    const passwordHash = await bcrypt.hash(normalizedPassword, 10);
+
+    await prisma.tempRegistration.create({
+      data: {
+        nama: normalizedNama,
+        nim: normalizedNim,
+        email: normalizedEmail,
+        password: passwordHash,
+        token: registrationToken,
+        code: kodeOtp,
+        expiresAt,
+        attemptCode: 0,
+        attemptResend: 0,
+        status: "PENDING",
+      },
+    });
+
+    await sendRegistrationOtp(normalizedEmail, kodeOtp);
+
+    return res.status(200).json({
+      message: "OTP berhasil dikirim ke email Anda.",
+      token: registrationToken,
+      isResend: false,
+      data: dataMahasiswa,
+    });
+  } catch (error) {
+    console.error("Error requestRegisterOtp:", error);
+
+    return res.status(500).json({
+      error: "Gagal mengirim OTP.",
+    });
+  }
+};
+
+export const requestOtp = async (
+  req: Request,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const { emailInstitusi } = req.body;
+
+    if (!emailInstitusi) {
+      return res.status(400).json({
+        error: "Email wajib diisi.",
+      });
+    }
+
+    const normalizedEmail = String(emailInstitusi).trim().toLowerCase();
+
+    if (!isInstitutionEmail(normalizedEmail)) {
+      return res.status(403).json({
+        error: "Harap gunakan email institusi pendidikan (.ac.id atau .edu).",
+      });
+    }
+
+    const kodeOtp = generateOtp();
+    const expiresAt = getOtpExpiration();
+
+    await prisma.otp.upsert({
+      where: {
+        email: normalizedEmail,
+      },
+      update: {
+        kodeOtp,
+        expiresAt,
+      },
+      create: {
+        email: normalizedEmail,
+        kodeOtp,
+        expiresAt,
+      },
+    });
+
     await transporter.sendMail({
       from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
-      to: emailInstitusi,
+      to: normalizedEmail,
       subject: "Kode Verifikasi OTP Anda",
       html: `<p>Kode OTP Anda adalah: <b>${kodeOtp}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
     });
 
-    return res
-      .status(200)
-      .json({ message: "OTP berhasil dikirim ke email Anda." });
+    return res.status(200).json({
+      message: "OTP berhasil dikirim ke email Anda.",
+    });
   } catch (error) {
     console.error("Error requestOtp:", error);
-    return res.status(500).json({ error: "Gagal mengirim OTP." });
+
+    return res.status(500).json({
+      error: "Gagal mengirim OTP.",
+    });
   }
 };
 
-// 2. Fungsi Register dengan OTP
-export const register = async (req: Request, res: Response): Promise<any> => {
+export const register = async (
+  req: Request,
+  res: Response,
+): Promise<Response> => {
   try {
-    const { nama, nim, emailInstitusi, otp } = req.body;
+    const { token, otp } = req.body;
 
-    if (!nama || !nim || !emailInstitusi || !otp) {
-      return res
-        .status(400)
-        .json({ error: "Nama, NIM, Email Institusi, dan OTP wajib diisi!" });
+    if (!token || !otp) {
+      return res.status(400).json({
+        error: "Token dan OTP wajib diisi.",
+      });
     }
 
-    // 1. Verifikasi OTP
-    const validOtp = await prisma.otp.findFirst({
-      where: { email: emailInstitusi, kodeOtp: otp },
+    const normalizedToken = String(token).trim();
+    const normalizedOtp = String(otp).trim();
+
+    const tempRegistration = await prisma.tempRegistration.findUnique({
+      where: {
+        token: normalizedToken,
+      },
     });
 
-    if (!validOtp) {
-      return res
-        .status(400)
-        .json({ error: "OTP salah atau tidak cocok dengan email." });
-    }
-    if (validOtp.expiresAt < new Date()) {
-      return res
-        .status(400)
-        .json({ error: "OTP sudah kedaluwarsa. Silakan minta ulang." });
+    if (!tempRegistration) {
+      return res.status(404).json({
+        error: "Sesi registrasi tidak ditemukan. Silakan registrasi ulang.",
+      });
     }
 
-    // 2. Cek apakah sudah terdaftar
+    if (tempRegistration.status !== "PENDING") {
+      return res.status(400).json({
+        error: "Sesi registrasi sudah tidak aktif.",
+      });
+    }
+
+    if (tempRegistration.attemptCode >= 3) {
+      return res.status(429).json({
+        error: "Percobaan OTP sudah mencapai batas maksimum.",
+      });
+    }
+
+    if (tempRegistration.expiresAt < new Date()) {
+      return res.status(400).json({
+        error: "OTP sudah kedaluwarsa. Silakan minta OTP baru.",
+      });
+    }
+
+    if (tempRegistration.code !== normalizedOtp) {
+      const nextAttempt = tempRegistration.attemptCode + 1;
+
+      await prisma.tempRegistration.update({
+        where: {
+          id: tempRegistration.id,
+        },
+        data: {
+          attemptCode: nextAttempt,
+          status: nextAttempt >= 3 ? "FAILED" : "PENDING",
+        },
+      });
+
+      return res.status(400).json({
+        error:
+          nextAttempt >= 3
+            ? "Percobaan OTP sudah mencapai batas maksimum."
+            : "OTP salah.",
+      });
+    }
+
     const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ emailInstitusi }, { nim }] },
+      where: {
+        OR: [
+          { emailInstitusi: tempRegistration.email },
+          { nim: tempRegistration.nim },
+        ],
+      },
+      select: {
+        id: true,
+      },
     });
+
     if (existingUser) {
-      return res
-        .status(400)
-        .json({ error: "Akun sudah terdaftar. Silakan langsung login." });
+      await prisma.tempRegistration.delete({
+        where: {
+          id: tempRegistration.id,
+        },
+      });
+
+      return res.status(409).json({
+        error: "Akun sudah terdaftar. Silakan langsung login.",
+      });
     }
 
-    // 3. Validasi ke API Nimfinder
-    let dataMahasiswa;
-    try {
-      dataMahasiswa = await cekStatusMahasiswa(nim);
-      if (dataMahasiswa.total === 0) {
-        return res
-          .status(400)
-          .json({ error: "NIM tidak ditemukan di sistem." });
-      }
-      if (!dataMahasiswa.results[0].status.toLowerCase().includes("aktif")) {
-        return res
-          .status(400)
-          .json({ error: "Status Anda bukan Mahasiswa Aktif." });
-      }
-    } catch (apiError: any) {
-      return res.status(502).json({ error: apiError.message });
-    }
+    const createdUser = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          nama: tempRegistration.nama,
+          nim: tempRegistration.nim,
+          emailInstitusi: tempRegistration.email,
+          password: tempRegistration.password,
+          isVerified: true,
+        },
+      });
 
-    // 4. Simpan ke Database
-    await prisma.user.create({
-      data: { nama, nim, emailInstitusi },
+      await tx.tempRegistration.delete({
+        where: {
+          id: tempRegistration.id,
+        },
+      });
+
+      return user;
     });
 
-    // 5. Hapus OTP setelah berhasil digunakan
-    await prisma.otp.delete({ where: { email: emailInstitusi } });
-
-    return res
-      .status(201)
-      .json({ message: "Registrasi berhasil!", data: dataMahasiswa });
+    return res.status(201).json({
+      message: "Registrasi berhasil!",
+      data: {
+        id: createdUser.id,
+        nama: createdUser.nama,
+        nim: createdUser.nim,
+        emailInstitusi: createdUser.emailInstitusi,
+        isVerified: createdUser.isVerified,
+      },
+    });
   } catch (error) {
     console.error("Error di register:", error);
-    return res.status(500).json({ error: "Terjadi kesalahan pada server" });
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan pada server.",
+    });
   }
 };
 
-// 2. FUNGSI LOGIN dengan OTP
-
-export const login = async (req: Request, res: Response): Promise<any> => {
+export const login = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { emailInstitusi, otp } = req.body;
 
     if (!emailInstitusi || !otp) {
-      return res
-        .status(400)
-        .json({ error: "NIM dan Token SSO wajib dikirim!" });
+      return res.status(400).json({
+        error: "Email institusi dan OTP wajib dikirim.",
+      });
     }
 
-    // 1. Verifikasi OTP
+    const normalizedEmail = String(emailInstitusi).trim().toLowerCase();
+    const normalizedOtp = String(otp).trim();
+
     const validOtp = await prisma.otp.findFirst({
-      where: { email: emailInstitusi, kodeOtp: otp },
+      where: {
+        email: normalizedEmail,
+        kodeOtp: normalizedOtp,
+      },
     });
 
-    if (!validOtp) return res.status(400).json({ error: "OTP salah." });
-    if (validOtp.expiresAt < new Date())
-      return res.status(400).json({ error: "OTP kedaluwarsa." });
+    if (!validOtp) {
+      return res.status(400).json({
+        error: "OTP salah.",
+      });
+    }
 
-    // 2. Cari user di database
+    if (validOtp.expiresAt < new Date()) {
+      return res.status(400).json({
+        error: "OTP kedaluwarsa.",
+      });
+    }
+
     const user = await prisma.user.findFirst({
-      where: { emailInstitusi: emailInstitusi },
+      where: {
+        emailInstitusi: normalizedEmail,
+      },
     });
 
     if (!user) {
@@ -165,38 +438,63 @@ export const login = async (req: Request, res: Response): Promise<any> => {
       });
     }
 
-    // 3. Buat Token JWT
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      console.error("JWT_SECRET belum dikonfigurasi.");
+
+      return res.status(500).json({
+        error: "Konfigurasi server tidak lengkap.",
+      });
+    }
+
     const token = jwt.sign(
-      { userId: user.id, nim: user.nim, email: user.emailInstitusi },
-      process.env.JWT_SECRET as string,
-      { expiresIn: "1d" },
+      {
+        userId: user.id,
+        nim: user.nim,
+        email: user.emailInstitusi,
+      },
+      jwtSecret,
+      {
+        expiresIn: "1d",
+      },
     );
 
-    // 4. Hapus OTP
-    await prisma.otp.delete({ where: { email: emailInstitusi } });
+    await prisma.otp.delete({
+      where: {
+        email: normalizedEmail,
+      },
+    });
 
     return res.status(200).json({
       message: "Login berhasil!",
-      token: token,
-      user: { nama: user.nama, nim: user.nim, email: user.emailInstitusi },
+      token,
+      user: {
+        nama: user.nama,
+        nim: user.nim,
+        email: user.emailInstitusi,
+      },
     });
   } catch (error) {
     console.error("Error di login:", error);
-    return res.status(500).json({ error: "Terjadi kesalahan pada server" });
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan pada server.",
+    });
   }
 };
-
-import { AuthRequest } from "../middleware/authMiddleware";
 
 export const getProfile = async (
   req: AuthRequest,
   res: Response,
-): Promise<any> => {
+): Promise<Response> => {
   try {
-    const { nim, email } = req.user;
+    const { nim } = req.user;
 
     const userProfile = await prisma.user.findFirst({
-      where: { nim: nim },
+      where: {
+        nim,
+      },
       select: {
         id: true,
         nama: true,
@@ -207,7 +505,9 @@ export const getProfile = async (
     });
 
     if (!userProfile) {
-      return res.status(404).json({ error: "Data pengguna tidak ditemukan." });
+      return res.status(404).json({
+        error: "Data pengguna tidak ditemukan.",
+      });
     }
 
     return res.status(200).json({
@@ -216,28 +516,31 @@ export const getProfile = async (
     });
   } catch (error) {
     console.error("Error di getProfile:", error);
-    return res.status(500).json({ error: "Terjadi kesalahan pada server" });
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan pada server.",
+    });
   }
 };
 
-// 3. FUNGSI KELOLA PROFIL (FR-PM-01, FR-PM-02, FR-PM-03)
 export const upsertProfile = async (
   req: AuthRequest,
   res: Response,
-): Promise<any> => {
+): Promise<Response> => {
   try {
-    // ID User diambil dari token JWT yang sudah divalidasi oleh middleware (NFR-05, NFR-07)
     const userId = req.user.userId;
     const { jurusan, skill, minat, pengalamanLomba } = req.body;
 
-    // Validasi input dasar (NFR-06)
     if (!jurusan) {
-      return res.status(400).json({ error: "Data jurusan wajib diisi." });
+      return res.status(400).json({
+        error: "Data jurusan wajib diisi.",
+      });
     }
 
-    // Upsert: Memastikan relasi One-to-One mutlak (NFR-14).
     const profile = await prisma.profile.upsert({
-      where: { userId: Number(userId) },
+      where: {
+        userId: Number(userId),
+      },
       update: {
         jurusan,
         skill: skill || [],
@@ -259,40 +562,40 @@ export const upsertProfile = async (
     });
   } catch (error) {
     console.error("Error di upsertProfile:", error);
-    // Penanganan kegagalan sistem agar tidak merusak data (NFR-15)
-    return res
-      .status(500)
-      .json({ error: "Terjadi kesalahan server saat menyimpan profil." });
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server saat menyimpan profil.",
+    });
   }
 };
 
-// 4. FUNGSI MELIHAT PROFIL PENGGUNA LAIN (FR-PM-04)
 export const getPublicProfile = async (
   req: Request,
   res: Response,
-): Promise<any> => {
+): Promise<Response> => {
   try {
-    const targetUserId = parseInt(req.params.id);
+    const targetUserId = Number(req.params.id);
 
-    // Validasi parameter ID (NFR-06)
-    if (isNaN(targetUserId)) {
-      return res.status(400).json({ error: "ID pengguna tidak valid." });
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+      return res.status(400).json({
+        error: "ID pengguna tidak valid.",
+      });
     }
 
-    // Ambil data user beserta profilnya secara read-only
     const userProfile = await prisma.user.findUnique({
-      where: { id: targetUserId },
+      where: {
+        id: targetUserId,
+      },
       select: {
         nama: true,
-        // Menyembunyikan emailInstitusi untuk menjaga privasi publik
         profile: true,
       },
     });
 
     if (!userProfile || !userProfile.profile) {
-      return res
-        .status(404)
-        .json({ error: "Profil pengguna tidak ditemukan atau belum diisi." });
+      return res.status(404).json({
+        error: "Profil pengguna tidak ditemukan atau belum diisi.",
+      });
     }
 
     return res.status(200).json({
@@ -301,8 +604,9 @@ export const getPublicProfile = async (
     });
   } catch (error) {
     console.error("Error di getPublicProfile:", error);
-    return res
-      .status(500)
-      .json({ error: "Terjadi kesalahan server saat mengambil profil." });
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server saat mengambil profil.",
+    });
   }
 };
