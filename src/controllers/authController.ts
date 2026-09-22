@@ -21,10 +21,6 @@ const generateOtp = (): string => {
   return crypto.randomInt(100000, 1000000).toString();
 };
 
-const generateRegistrationToken = (): string => {
-  return crypto.randomBytes(32).toString("hex");
-};
-
 const getOtpExpiration = (): Date => {
   return new Date(Date.now() + 5 * 60 * 1000);
 };
@@ -33,24 +29,39 @@ const isInstitutionEmail = (email: string): boolean => {
   return email.endsWith(".ac.id") || email.endsWith(".edu");
 };
 
-const sendRegistrationOtp = async (
-  email: string,
-  otp: string,
-): Promise<void> => {
-  await transporter.sendMail({
-    from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Kode Verifikasi OTP Anda",
-    html: `<p>Kode OTP Anda adalah: <b>${otp}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
-  });
-};
-
 export const requestRegisterOtp = async (
   req: Request,
   res: Response,
 ): Promise<Response> => {
   try {
-    const { nama, nim, emailInstitusi, password } = req.body;
+    const { token, nama, nim, emailInstitusi, password } = req.body;
+
+    if (token) {
+      const tempRegistration = await prisma.tempRegistration.findUnique({
+        where: {
+          token: String(token).trim(),
+        },
+      });
+
+      if (!tempRegistration) {
+        return res.status(404).json({
+          error: "Sesi registrasi tidak ditemukan. Silakan registrasi ulang.",
+        });
+      }
+
+      await transporter.sendMail({
+        from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
+        to: tempRegistration.email,
+        subject: "Kode Verifikasi OTP Anda",
+        html: `<p>Kode OTP Anda adalah: <b>${tempRegistration.code}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
+      });
+
+      return res.status(200).json({
+        message: null,
+        expiresAt: tempRegistration.expiresAt,
+        emailInstitusi: tempRegistration.email,
+      });
+    }
 
     if (!nama || !nim || !emailInstitusi || !password) {
       return res.status(400).json({
@@ -63,18 +74,10 @@ export const requestRegisterOtp = async (
     const normalizedEmail = String(emailInstitusi).trim().toLowerCase();
     const normalizedPassword = String(password);
 
-    if (
-      !normalizedNama ||
-      !normalizedNim ||
-      !normalizedEmail ||
-      !normalizedPassword
-    ) {
-      return res.status(400).json({
-        error: "Nama, NIM, email institusi, dan password wajib diisi.",
-      });
-    }
+    const isEmailKampus =
+      normalizedEmail.endsWith(".ac.id") || normalizedEmail.endsWith(".edu");
 
-    if (!isInstitutionEmail(normalizedEmail)) {
+    if (!isEmailKampus) {
       return res.status(403).json({
         error: "Harap gunakan email institusi pendidikan (.ac.id atau .edu).",
       });
@@ -92,56 +95,6 @@ export const requestRegisterOtp = async (
     if (existingUser) {
       return res.status(409).json({
         error: "Akun sudah terdaftar. Silakan langsung login.",
-      });
-    }
-
-    const existingTemp = await prisma.tempRegistration.findUnique({
-      where: {
-        email: normalizedEmail,
-      },
-    });
-
-    if (existingTemp) {
-      if (existingTemp.status === "FAILED") {
-        return res.status(429).json({
-          error: "Sesi registrasi sudah diblokir.",
-        });
-      }
-
-      if (existingTemp.attemptCode >= 3) {
-        return res.status(429).json({
-          error: "Percobaan OTP sudah mencapai batas maksimum.",
-        });
-      }
-
-      if (existingTemp.attemptResend >= 3) {
-        return res.status(429).json({
-          error: "Permintaan OTP sudah mencapai batas maksimum.",
-        });
-      }
-
-      const kodeOtp = generateOtp();
-      const expiresAt = getOtpExpiration();
-
-      await prisma.tempRegistration.update({
-        where: {
-          id: existingTemp.id,
-        },
-        data: {
-          code: kodeOtp,
-          expiresAt,
-          attemptResend: {
-            increment: 1,
-          },
-        },
-      });
-
-      await sendRegistrationOtp(existingTemp.email, kodeOtp);
-
-      return res.status(200).json({
-        message: "OTP berhasil dikirim ulang ke email Anda.",
-        token: existingTemp.token,
-        isResend: true,
       });
     }
 
@@ -169,13 +122,25 @@ export const requestRegisterOtp = async (
       });
     }
 
-    const kodeOtp = generateOtp();
-    const expiresAt = getOtpExpiration();
-    const registrationToken = generateRegistrationToken();
+    const kodeOtp = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const registrationToken = crypto.randomBytes(32).toString("hex");
     const passwordHash = await bcrypt.hash(normalizedPassword, 10);
 
-    await prisma.tempRegistration.create({
-      data: {
+    await prisma.tempRegistration.upsert({
+      where: {
+        email: normalizedEmail,
+      },
+      update: {
+        nama: normalizedNama,
+        nim: normalizedNim,
+        password: passwordHash,
+        token: registrationToken,
+        code: kodeOtp,
+        expiresAt,
+        status: "PENDING",
+      },
+      create: {
         nama: normalizedNama,
         nim: normalizedNim,
         email: normalizedEmail,
@@ -189,13 +154,18 @@ export const requestRegisterOtp = async (
       },
     });
 
-    await sendRegistrationOtp(normalizedEmail, kodeOtp);
+    await transporter.sendMail({
+      from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
+      to: normalizedEmail,
+      subject: "Kode Verifikasi OTP Anda",
+      html: `<p>Kode OTP Anda adalah: <b>${kodeOtp}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
+    });
 
     return res.status(200).json({
       message: "OTP berhasil dikirim ke email Anda.",
       token: registrationToken,
-      isResend: false,
-      data: dataMahasiswa,
+      expiresAt: expiresAt,
+      emailInstitusi: normalizedEmail,
     });
   } catch (error) {
     console.error("Error requestRegisterOtp:", error);
@@ -254,12 +224,68 @@ export const requestOtp = async (
 
     return res.status(200).json({
       message: "OTP berhasil dikirim ke email Anda.",
+      expiresAt: expiresAt,
+      emailInstitusi: normalizedEmail,
     });
   } catch (error) {
     console.error("Error requestOtp:", error);
 
     return res.status(500).json({
       error: "Gagal mengirim OTP.",
+    });
+  }
+};
+
+export const getRegisterSession = async (
+  req: Request,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        error: "Token registrasi wajib diisi.",
+      });
+    }
+
+    const tempRegistration = await prisma.tempRegistration.findUnique({
+      where: {
+        token: String(token).trim(),
+      },
+      select: {
+        nama: true,
+        email: true,
+        expiresAt: true,
+        status: true,
+      },
+    });
+
+    if (!tempRegistration) {
+      return res.status(404).json({
+        error: "Sesi registrasi tidak ditemukan.",
+      });
+    }
+
+    if (tempRegistration.status !== "PENDING") {
+      return res.status(400).json({
+        error: "Sesi registrasi sudah tidak aktif.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Sesi registrasi ditemukan.",
+      data: {
+        nama: tempRegistration.nama,
+        emailInstitusi: tempRegistration.email,
+        expiresAt: tempRegistration.expiresAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error getRegisterSession:", error);
+
+    return res.status(500).json({
+      error: "Gagal mengambil sesi registrasi.",
     });
   }
 };
