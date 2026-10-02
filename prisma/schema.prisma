@@ -123,6 +123,7 @@ model Team {
   members         TeamMember[] 
   swipes        TeamSwipe[]
   joinRequests  JoinRequest[]  @relation("TeamJoinRequests")
+  kuota Int @default(5) // Tambahan untuk memunculkan batas maksimal anggota (misal 5)
 }
 
 model TeamMember {
