@@ -11,7 +11,11 @@ export const getTeamRecommendations = async (
 ): Promise<any> => {
   try {
     const userId = req.user.userId;
-    const { keyword, kompetisi } = req.query; // Fitur Filter (FR-MTC-02)
+    const { keyword, kategori, skill } = req.query;
+
+    const userProfile = await prisma.profile.findUnique({
+      where: { userId: Number(userId) },
+    });
 
     const filterConditions: any = {};
     if (keyword) {
@@ -20,21 +24,81 @@ export const getTeamRecommendations = async (
         { deskripsi: { contains: String(keyword) } },
       ];
     }
-    if (kompetisi) filterConditions.kompetisi = { contains: String(kompetisi) };
+    if (kategori && kategori !== "Semua") {
+      filterConditions.kompetisi = { contains: String(kategori) };
+    }
 
-    // NFR-01: Mengambil tim yang BELUM pernah di-swipe oleh user (Rekomendasi Pintar)
-    const teams = await prisma.team.findMany({
+    let teams = await prisma.team.findMany({
       where: {
         ...filterConditions,
         leaderId: { not: userId },
         swipes: { none: { userId: userId } },
-        members: { none: { userId: userId } },
       },
       include: {
         leader: { select: { nama: true } },
+        members: { select: { id: true } },
       },
-      take: 20,
+      take: 50,
     });
+
+    if (userProfile && teams.length > 0) {
+      const userSkills: string[] = Array.isArray(userProfile.skill)
+        ? (userProfile.skill as string[]).map((s) => s.toLowerCase())
+        : [];
+      const userMinat: string[] = Array.isArray(userProfile.minat)
+        ? (userProfile.minat as string[]).map((m) => m.toLowerCase())
+        : [];
+
+      const scoredTeams = teams.map((team) => {
+        let matchScore = 0;
+        const teamSkillsReq: string[] = Array.isArray(team.skillDibutuhkan)
+          ? (team.skillDibutuhkan as string[]).map((s) => s.toLowerCase())
+          : [];
+
+        // Hitung kecocokan skill
+        userSkills.forEach((userSkill) => {
+          if (teamSkillsReq.includes(userSkill)) matchScore += 2;
+        });
+
+        // Hitung kecocokan minat
+        const teamDesc = team.deskripsi.toLowerCase();
+        userMinat.forEach((minat) => {
+          if (teamDesc.includes(minat)) matchScore += 1;
+        });
+
+        // Konversi ke Persentase (Kecocokan %)
+        // Asumsi nilai maksimum yang ideal adalah 10 poin
+        let persentase = Math.round((matchScore / 10) * 100);
+        if (persentase > 98) persentase = 98;
+        if (persentase < 10) persentase = 10;
+
+        const anggotaTerisi = team.members.length;
+
+        return {
+          ...team,
+          kecocokan: `${persentase}%`,
+          jumlahAnggotaTeks: `${anggotaTerisi}/${team.kuota || 5} Anggota`,
+        };
+      });
+
+      if (skill && skill !== "Semua") {
+        const searchedSkill = String(skill).toLowerCase();
+        teams = scoredTeams.filter(
+          (t) =>
+            Array.isArray(t.skillDibutuhkan) &&
+            (t.skillDibutuhkan as string[]).some((s) =>
+              s.toLowerCase().includes(searchedSkill),
+            ),
+        );
+      } else {
+        teams = scoredTeams;
+      }
+
+      teams.sort(
+        (a: any, b: any) => parseInt(b.kecocokan) - parseInt(a.kecocokan),
+      );
+      teams = teams.slice(0, 20);
+    }
 
     return res
       .status(200)
