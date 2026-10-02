@@ -3,6 +3,7 @@ import cors from "cors";
 import authRoutes from "./routes/authRoutes";
 import teamRoutes from "./routes/teamRoutes";
 import matchRoutes from "./routes/matchRoutes";
+import competitionRoutes from "./routes/competitionRoutes";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,8 +16,8 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api/match", matchRoutes);
+app.use("/api/competitions", competitionRoutes);
 
-// Jalankan Server
 app.listen(PORT, () => {
   console.log(`[server]: Server sedang berjalan di http://localhost:${PORT}`);
 });
