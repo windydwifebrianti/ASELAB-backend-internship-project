@@ -98,8 +98,6 @@ export const requestRegisterOtp = async (
       });
     }
 
-    let dataMahasiswa;
-
     try {
       const dataMahasiswa = await cekStatusMahasiswa(normalizedNim);
       console.log(Object.keys(dataMahasiswa.results?.[0] ?? {}));
@@ -139,7 +137,9 @@ export const requestRegisterOtp = async (
         .trim()
         .toLowerCase();
 
-      if (status !== "aktif" && status !== "active") {
+      const isAktif = /^aktif(?:$|\s|-)/.test(status);
+
+      if (!isAktif) {
         return res.status(400).json({
           error: "Hanya mahasiswa berstatus Aktif yang dapat mendaftar.",
         });
@@ -452,41 +452,36 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { emailInstitusi, password } = req.body;
 
-    if (!emailInstitusi || !password) {
+    if (
+      typeof emailInstitusi !== "string" ||
+      typeof password !== "string" ||
+      !emailInstitusi.trim() ||
+      password.length === 0
+    ) {
       return res.status(400).json({
         error: "Email institusi dan password wajib dikirim.",
       });
     }
 
-    const normalizedEmail = String(emailInstitusi).trim().toLowerCase();
-    const normalizedPassword = String(password).trim();
+    const normalizedEmail = emailInstitusi.trim().toLowerCase();
 
-    const isValidUser = await prisma.user.findFirst({
+    const user = await prisma.user.findUnique({
       where: {
         emailInstitusi: normalizedEmail,
       },
     });
 
-    const user = await prisma.user.findFirst({
-      where: {
-        emailInstitusi: normalizedEmail,
-      },
-    });
-
-    // validasi password
-    const isPasswordValid = user
-      ? await bcrypt.compare(normalizedPassword, user.password!)
-      : false;
-
-    if (!isValidUser || !isPasswordValid) {
+    if (!user || !user.password) {
       return res.status(401).json({
         error: "Email institusi atau password salah.",
       });
     }
 
-    if (!user) {
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
       return res.status(401).json({
-        error: "Akun tidak ditemukan. Silakan register terlebih dahulu.",
+        error: "Email institusi atau password salah.",
       });
     }
 
