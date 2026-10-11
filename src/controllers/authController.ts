@@ -417,6 +417,10 @@ export const register = async (
           emailInstitusi: tempRegistration.email,
           password: tempRegistration.password,
           isVerified: true,
+
+          profile: {
+            create: {},
+          },
         },
       });
 
