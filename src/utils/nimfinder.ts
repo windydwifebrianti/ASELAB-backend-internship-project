@@ -2,12 +2,18 @@ import axios from "axios";
 
 export async function cekStatusMahasiswa(nim: string): Promise<any> {
   try {
-    const url = `https://api.nimfinder.com/search?q=${nim}&limit=1&offset=0`;
-    const response = await axios.get(url);
+    const response = await axios.get("https://api.nimfinder.com/search", {
+      params: {
+        q: nim,
+        limit: 10,
+        offset: 0,
+      },
+    });
 
     return response.data;
   } catch (error) {
-    console.error("Gagal terhubung ke Nimfinder:", error);
+    console.error("Gagal terhubung ke NIMFinder:", error);
+
     throw new Error("Layanan verifikasi NIM sedang gangguan, coba lagi nanti.");
   }
 }
