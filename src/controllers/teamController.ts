@@ -4,7 +4,6 @@ import { AuthRequest } from "../middleware/authMiddleware";
 
 const prisma = new PrismaClient();
 
-// 1. MEMBUAT TIM (FR-TM-01, FR-TM-02, FR-TM-03)
 export const createTeam = async (
   req: AuthRequest,
   res: Response,
@@ -13,14 +12,12 @@ export const createTeam = async (
     const leaderId = req.user.userId;
     const { nama, deskripsi, kompetisi, skillDibutuhkan } = req.body;
 
-    // NFR-06: Validasi input data wajib
     if (!nama || !deskripsi || !kompetisi) {
       return res
         .status(400)
         .json({ error: "Nama, deskripsi, dan kompetisi tim wajib diisi." });
     }
 
-    // NFR-14 & FR-TM-03: Gunakan Prisma Transaction untuk membuat Tim sekaligus menetapkan si Pembuat sebagai LEADER di tabel anggota.
     const result = await prisma.$transaction(async (tx) => {
       const team = await tx.team.create({
         data: {
@@ -54,7 +51,6 @@ export const createTeam = async (
   }
 };
 
-// 2. MENGUBAH INFO TIM (FR-TM-04)
 export const updateTeam = async (
   req: AuthRequest,
   res: Response,
@@ -68,7 +64,6 @@ export const updateTeam = async (
 
     if (!team) return res.status(404).json({ error: "Tim tidak ditemukan." });
 
-    // NFR-07: Access Control - Hanya Team Leader yang bisa mengubah
     if (team.leaderId !== userId) {
       return res.status(403).json({
         error: "Akses ditolak! Hanya Team Leader yang dapat mengubah info tim.",
@@ -95,7 +90,6 @@ export const updateTeam = async (
   }
 };
 
-// 3. MENGHAPUS TIM (FR-TM-05)
 export const deleteTeam = async (
   req: AuthRequest,
   res: Response,
@@ -107,14 +101,12 @@ export const deleteTeam = async (
     const team = await prisma.team.findUnique({ where: { id: teamId } });
     if (!team) return res.status(404).json({ error: "Tim tidak ditemukan." });
 
-    // NFR-07: Access Control
     if (team.leaderId !== userId) {
       return res.status(403).json({
         error: "Akses ditolak! Hanya Team Leader yang dapat menghapus tim.",
       });
     }
 
-    // Akan otomatis menghapus TeamMember karena relasi onDelete: Cascade (NFR-14)
     await prisma.team.delete({ where: { id: teamId } });
 
     return res
@@ -128,7 +120,6 @@ export const deleteTeam = async (
   }
 };
 
-// 4. MELIHAT DETAIL TIM & ANGGOTA (FR-TM-06, FR-TM-07)
 export const getTeamDetail = async (
   req: AuthRequest,
   res: Response,

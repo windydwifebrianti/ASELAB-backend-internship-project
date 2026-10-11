@@ -4,7 +4,6 @@ import { AuthRequest } from "../middleware/authMiddleware";
 
 const prisma = new PrismaClient();
 
-// 1. CARI & REKOMENDASI TIM (FR-MTC-01, 02, 03, 04)
 export const getTeamRecommendations = async (
   req: AuthRequest,
   res: Response,
@@ -55,19 +54,15 @@ export const getTeamRecommendations = async (
           ? (team.skillDibutuhkan as string[]).map((s) => s.toLowerCase())
           : [];
 
-        // Hitung kecocokan skill
         userSkills.forEach((userSkill) => {
           if (teamSkillsReq.includes(userSkill)) matchScore += 2;
         });
 
-        // Hitung kecocokan minat
         const teamDesc = team.deskripsi.toLowerCase();
         userMinat.forEach((minat) => {
           if (teamDesc.includes(minat)) matchScore += 1;
         });
 
-        // Konversi ke Persentase (Kecocokan %)
-        // Asumsi nilai maksimum yang ideal adalah 10 poin
         let persentase = Math.round((matchScore / 10) * 100);
         if (persentase > 98) persentase = 98;
         if (persentase < 10) persentase = 10;
@@ -108,7 +103,6 @@ export const getTeamRecommendations = async (
   }
 };
 
-// 2. SWIPE (LIKE / PASS) (FR-MTC-06)
 export const swipeTeam = async (
   req: AuthRequest,
   res: Response,
@@ -137,7 +131,6 @@ export const swipeTeam = async (
   }
 };
 
-// 3. MENGIRIM JOIN REQUEST & NOTIFIKASI (FR-MTC-07, FR-MTC-10)
 export const createJoinRequest = async (
   req: AuthRequest,
   res: Response,
@@ -154,7 +147,6 @@ export const createJoinRequest = async (
         data: { userId, teamId, pesan },
       });
 
-      // FR-MTC-10: Sistem memberikan notifikasi kepada Team Leader
       await tx.notification.create({
         data: {
           userId: team.leaderId,
@@ -178,7 +170,6 @@ export const createJoinRequest = async (
   }
 };
 
-// 4. KELOLA JOIN REQUEST OLEH LEADER (FR-MTC-08, FR-MTC-10)
 export const manageJoinRequest = async (
   req: AuthRequest,
   res: Response,
@@ -196,22 +187,18 @@ export const manageJoinRequest = async (
     if (!request)
       return res.status(404).json({ error: "Request tidak ditemukan." });
 
-    // NFR-07: Hanya Leader tim yang berhak menerima/menolak
     if (request.team.leaderId !== leaderId) {
       return res
         .status(403)
         .json({ error: "Akses ditolak. Anda bukan Team Leader." });
     }
 
-    // NFR-14: Transaksi pembaruan status, penambahan anggota (jika diterima), dan notifikasi
     await prisma.$transaction(async (tx) => {
-      // 1. Update status request
       await tx.joinRequest.update({
         where: { id: requestId },
         data: { status },
       });
 
-      // 2. Jika diterima, masukkan user ke tabel TeamMember
       if (status === "ACCEPTED") {
         await tx.teamMember.create({
           data: {
@@ -222,7 +209,6 @@ export const manageJoinRequest = async (
         });
       }
 
-      // 3. Kirim notifikasi hasil keputusan kepada pengirim (FR-MTC-10)
       const statusText = status === "ACCEPTED" ? "diterima" : "ditolak";
       await tx.notification.create({
         data: {
@@ -243,7 +229,6 @@ export const manageJoinRequest = async (
   }
 };
 
-// 5. MELIHAT STATUS JOIN REQUEST (FR-MTC-09)
 export const getMyJoinRequests = async (
   req: AuthRequest,
   res: Response,
