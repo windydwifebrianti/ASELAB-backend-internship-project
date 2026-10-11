@@ -101,19 +101,47 @@ export const requestRegisterOtp = async (
     let dataMahasiswa;
 
     try {
-      dataMahasiswa = await cekStatusMahasiswa(normalizedNim);
+      const dataMahasiswa = await cekStatusMahasiswa(normalizedNim);
+      console.log(Object.keys(dataMahasiswa.results?.[0] ?? {}));
 
-      if (dataMahasiswa.total === 0) {
+      if (
+        !Array.isArray(dataMahasiswa.results) ||
+        dataMahasiswa.results.length === 0
+      ) {
         return res.status(400).json({
           error: "NIM tidak ditemukan di sistem.",
         });
       }
 
-      const mahasiswa = dataMahasiswa.results[0];
+      const mahasiswa = dataMahasiswa.results.find(
+        (item: any) => String(item.nim).trim() === normalizedNim,
+      );
 
-      if (!mahasiswa.status.toLowerCase().includes("aktif")) {
+      if (!mahasiswa) {
         return res.status(400).json({
-          error: "Status Anda bukan Mahasiswa Aktif.",
+          error: "NIM tidak ditemukan di sistem.",
+        });
+      }
+
+      const normalisasiNama = (nama: string) =>
+        nama.trim().replace(/\s+/g, " ").toLowerCase();
+
+      if (
+        !mahasiswa.nama ||
+        normalisasiNama(mahasiswa.nama) !== normalisasiNama(normalizedNama)
+      ) {
+        return res.status(400).json({
+          error: "Nama tidak sesuai dengan pemilik NIM.",
+        });
+      }
+
+      const status = String(mahasiswa.status ?? "")
+        .trim()
+        .toLowerCase();
+
+      if (status !== "aktif" && status !== "active") {
+        return res.status(400).json({
+          error: "Hanya mahasiswa berstatus Aktif yang dapat mendaftar.",
         });
       }
     } catch (apiError: any) {
