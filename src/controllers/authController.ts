@@ -49,17 +49,46 @@ export const requestRegisterOtp = async (
         });
       }
 
+      if (tempRegistration.status !== "PENDING") {
+        return res.status(400).json({
+          error: "Sesi registrasi sudah tidak aktif.",
+        });
+      }
+
+      if (tempRegistration.attemptResend >= 3) {
+        return res.status(429).json({
+          error: "Batas pengiriman ulang OTP telah tercapai.",
+        });
+      }
+
+      const newCode = generateOtp();
+      const newExpiresAt = getOtpExpiration();
+
+      const updatedRegistration = await prisma.tempRegistration.update({
+        where: {
+          id: tempRegistration.id,
+        },
+        data: {
+          code: newCode,
+          expiresAt: newExpiresAt,
+          attemptCode: 0,
+          attemptResend: {
+            increment: 1,
+          },
+        },
+      });
+
       await transporter.sendMail({
         from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
-        to: tempRegistration.email,
+        to: updatedRegistration.email,
         subject: "Kode Verifikasi OTP Anda",
-        html: `<p>Kode OTP Anda adalah: <b>${tempRegistration.code}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
+        html: `<p>Kode OTP Anda adalah: <b>${newCode}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
       });
 
       return res.status(200).json({
-        message: null,
-        expiresAt: tempRegistration.expiresAt,
-        emailInstitusi: tempRegistration.email,
+        message: "OTP baru berhasil dikirim ke email Anda.",
+        expiresAt: updatedRegistration.expiresAt,
+        emailInstitusi: updatedRegistration.email,
       });
     }
 
