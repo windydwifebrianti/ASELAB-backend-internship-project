@@ -71,7 +71,15 @@ export const updateTeam = async (
 ): Promise<any> => {
   try {
     const userId = req.user.userId;
-    const teamId = parseInt(req.params.id);
+
+    const teamId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(teamId) || teamId <= 0) {
+      return res.status(400).json({
+        error: "ID tim tidak valid.",
+      });
+    }
+
     const { nama, deskripsi, kompetisi, skillDibutuhkan } = req.body;
 
     const team = await prisma.team.findUnique({ where: { id: teamId } });
@@ -110,7 +118,13 @@ export const deleteTeam = async (
 ): Promise<any> => {
   try {
     const userId = req.user.userId;
-    const teamId = parseInt(req.params.id);
+    const teamId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(teamId) || teamId <= 0) {
+      return res.status(400).json({
+        error: "ID tim tidak valid.",
+      });
+    }
 
     const team = await prisma.team.findUnique({ where: { id: teamId } });
     if (!team) return res.status(404).json({ error: "Tim tidak ditemukan." });
@@ -139,7 +153,13 @@ export const getTeamDetail = async (
   res: Response,
 ): Promise<any> => {
   try {
-    const teamId = parseInt(req.params.id);
+    const teamId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(teamId) || teamId <= 0) {
+      return res.status(400).json({
+        error: "ID tim tidak valid.",
+      });
+    }
 
     const team = await prisma.team.findUnique({
       where: { id: teamId },
