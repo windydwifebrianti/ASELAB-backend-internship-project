@@ -12,7 +12,21 @@ export const createTeam = async (
     const leaderId = req.user.userId;
     const { nama, deskripsi, kompetisi, skillDibutuhkan } = req.body;
 
-    if (!nama || !deskripsi || !kompetisi) {
+    if (
+      typeof nama !== "string" ||
+      typeof deskripsi !== "string" ||
+      typeof kompetisi !== "string"
+    ) {
+      return res.status(400).json({
+        error: "Nama, deskripsi, dan kompetisi wajib diisi.",
+      });
+    }
+
+    const namaBersih = nama.trim();
+    const deskripsiBersih = deskripsi.trim();
+    const kompetisiBersih = kompetisi.trim();
+
+    if (!namaBersih || !deskripsiBersih || !kompetisiBersih) {
       return res
         .status(400)
         .json({ error: "Nama, deskripsi, dan kompetisi tim wajib diisi." });
@@ -21,9 +35,9 @@ export const createTeam = async (
     const result = await prisma.$transaction(async (tx) => {
       const team = await tx.team.create({
         data: {
-          nama,
-          deskripsi,
-          kompetisi,
+          nama: namaBersih,
+          deskripsi: deskripsiBersih,
+          kompetisi: kompetisiBersih,
           skillDibutuhkan: skillDibutuhkan || [],
           leaderId: Number(leaderId),
         },
