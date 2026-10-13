@@ -111,14 +111,20 @@ export const swipeTeam = async (
     const userId = req.user.userId;
     const { teamId, action } = req.body; // action: "LIKE" | "PASS"
 
-    if (!teamId || !["LIKE", "PASS"].includes(action)) {
-      return res
-        .status(400)
-        .json({ error: "Data teamId dan action (LIKE/PASS) tidak valid." }); // NFR-09
+    const teamIdNumber = Number(teamId);
+
+    if (
+      !Number.isSafeInteger(teamIdNumber) ||
+      teamIdNumber <= 0 ||
+      !["LIKE", "PASS"].includes(action)
+    ) {
+      return res.status(400).json({
+        error: "Data teamId dan action (LIKE/PASS) tidak valid.",
+      });
     }
 
     const swipe = await prisma.teamSwipe.upsert({
-      where: { userId_teamId: { userId, teamId } },
+      where: { userId_teamId: { userId, teamId: teamIdNumber } },
       update: { action },
       create: { userId, teamId, action },
     });
@@ -139,12 +145,23 @@ export const createJoinRequest = async (
     const userId = req.user.userId;
     const { teamId, pesan } = req.body;
 
-    const team = await prisma.team.findUnique({ where: { id: teamId } });
+    const teamIdNumber = Number(teamId);
+
+    if (!Number.isSafeInteger(teamIdNumber) || teamIdNumber <= 0) {
+      return res.status(400).json({
+        error: "ID tim tidak valid.",
+      });
+    }
+
+    const team = await prisma.team.findUnique({
+      where: { id: teamIdNumber },
+    });
+
     if (!team) return res.status(404).json({ error: "Tim tidak ditemukan." });
 
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.joinRequest.create({
-        data: { userId, teamId, pesan },
+        data: { userId, teamId: teamIdNumber, pesan },
       });
 
       await tx.notification.create({
@@ -176,8 +193,14 @@ export const manageJoinRequest = async (
 ): Promise<any> => {
   try {
     const leaderId = req.user.userId;
-    const requestId = parseInt(req.params.id);
-    const { status } = req.body; // "ACCEPTED" atau "REJECTED"
+    const requestId = Number(req.params.id);
+    const { status } = req.body;
+
+    if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+      return res.status(400).json({
+        error: "ID join request tidak valid.",
+      });
+    }
 
     const request = await prisma.joinRequest.findUnique({
       where: { id: requestId },
