@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   register,
   login,
+  changePassword,
   getProfile,
   upsertProfile,
   getPublicProfile,
@@ -85,6 +86,54 @@ router.post("/register", register);
  */
 
 router.post("/login", login);
+
+/**
+ * @openapi
+ * /api/auth/change-password:
+ *   patch:
+ *     tags: [Auth]
+ *     summary: Mengganti password pengguna
+ *     description: Mengganti password dengan memverifikasi password lama terlebih dahulu.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *               - confirmPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 format: password
+ *                 example: PasswordLama123
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *                 example: PasswordBaru123
+ *               confirmPassword:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *                 example: PasswordBaru123
+ *     responses:
+ *       "200":
+ *         description: Password berhasil diubah
+ *       "400":
+ *         description: Input tidak valid atau password lama salah
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia
+ *       "404":
+ *         description: Pengguna tidak ditemukan
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.patch("/change-password", verifyToken, changePassword);
 
 /**
  * @openapi
