@@ -867,7 +867,19 @@ export const downloadCV = async (
       });
     }
 
-    return res.download(filePath, "CV.pdf");
+    res.download(filePath, "CV.pdf", (error) => {
+      if (error) {
+        console.error("Error downloadCV:", error);
+
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: "Gagal mengunduh CV.",
+          });
+        }
+      }
+    });
+
+    return res;
   } catch (error) {
     console.error("Error downloadCV:", error);
 
