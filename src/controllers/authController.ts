@@ -5,6 +5,8 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import path from "path";
+import fs from "fs";
 import { AuthRequest } from "../middleware/authMiddleware";
 
 const prisma = new PrismaClient();
@@ -783,6 +785,136 @@ export const getPublicProfile = async (
 
     return res.status(500).json({
       error: "Terjadi kesalahan server saat mengambil profil.",
+    });
+  }
+};
+
+export const uploadCV = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const userId = Number(req.user?.userId);
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({
+        error: "File CV belum dikirim.",
+      });
+    }
+
+    const profile = await prisma.profile.upsert({
+      where: { userId },
+      update: {
+        cvPath: file.filename,
+      },
+      create: {
+        userId,
+        cvPath: file.filename,
+      },
+    });
+
+    return res.status(200).json({
+      message: "CV berhasil diunggah.",
+      data: {
+        cvUploaded: Boolean(profile.cvPath),
+      },
+    });
+  } catch (error) {
+    console.error("Error uploadCV:", error);
+
+    return res.status(500).json({
+      error: "Gagal mengunggah CV.",
+    });
+  }
+};
+
+export const downloadCV = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const userId = Number(req.user?.userId);
+
+    const profile = await prisma.profile.findUnique({
+      where: { userId },
+      select: { cvPath: true },
+    });
+
+    if (!profile?.cvPath) {
+      return res.status(404).json({
+        error: "CV belum tersedia.",
+      });
+    }
+
+    // CV hanya dapat diakses pemilik akun melalui endpoint ini.
+    if (path.basename(profile.cvPath) !== profile.cvPath) {
+      return res.status(400).json({
+        error: "Lokasi file tidak valid.",
+      });
+    }
+
+    const filePath = path.resolve(
+      process.cwd(),
+      "uploads",
+      "cv",
+      profile.cvPath,
+    );
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        error: "File CV tidak ditemukan.",
+      });
+    }
+
+    return res.download(filePath, "CV.pdf");
+  } catch (error) {
+    console.error("Error downloadCV:", error);
+
+    return res.status(500).json({
+      error: "Gagal mengunduh CV.",
+    });
+  }
+};
+
+export const uploadProfileImage = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const userId = Number(req.user?.userId);
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({
+        error: "Gambar profil belum dikirim.",
+      });
+    }
+
+    const imageUrl = `/uploads/profiles/${file.filename}`;
+
+    const profile = await prisma.profile.upsert({
+      where: { userId },
+      update: {
+        fotoProfilUrl: imageUrl,
+      },
+      create: {
+        userId,
+        fotoProfilUrl: imageUrl,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Gambar profil berhasil diperbarui.",
+      data: {
+        fotoProfilUrl: profile.fotoProfilUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Error uploadProfileImage:", error);
+
+    return res.status(500).json({
+      error: "Gagal memperbarui gambar profil.",
     });
   }
 };
