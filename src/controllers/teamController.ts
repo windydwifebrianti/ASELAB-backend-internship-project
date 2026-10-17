@@ -154,13 +154,40 @@ export const getTeamDetail = async (
 ): Promise<any> => {
   try {
     const teamId = Number(req.params.id);
+    const userId = Number(req.user?.userId);
 
-    if (!Number.isSafeInteger(teamId) || teamId <= 0) {
+    // Validasi ID
+    if (
+      !Number.isSafeInteger(teamId) ||
+      teamId <= 0 ||
+      !Number.isSafeInteger(userId) ||
+      userId <= 0
+    ) {
       return res.status(400).json({
-        error: "ID tim tidak valid.",
+        error: "ID tim atau pengguna tidak valid.",
       });
     }
 
+    const blacklistEntry = await prisma.teamBlacklist.findUnique({
+      where: {
+        teamId_blockedUserId: {
+          teamId,
+          blockedUserId: userId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    // Sembunyikan tim dari pengguna yang diblacklist.
+    if (blacklistEntry) {
+      return res.status(404).json({
+        error: "Tim tidak ditemukan.",
+      });
+    }
+
+    // Ambil detail tim dan anggotanya.
     const team = await prisma.team.findUnique({
       where: { id: teamId },
       include: {
@@ -169,7 +196,12 @@ export const getTeamDetail = async (
             user: {
               select: {
                 nama: true,
-                profile: { select: { jurusan: true, skill: true } }, // Mengambil sekilas skill anggota
+                profile: {
+                  select: {
+                    jurusan: true,
+                    skill: true,
+                  },
+                },
               },
             },
           },
@@ -177,15 +209,21 @@ export const getTeamDetail = async (
       },
     });
 
-    if (!team) return res.status(404).json({ error: "Tim tidak ditemukan." });
+    if (!team) {
+      return res.status(404).json({
+        error: "Tim tidak ditemukan.",
+      });
+    }
 
-    return res
-      .status(200)
-      .json({ message: "Berhasil mengambil detail tim", data: team });
+    return res.status(200).json({
+      message: "Berhasil mengambil detail tim",
+      data: team,
+    });
   } catch (error) {
     console.error("Error getTeamDetail:", error);
-    return res
-      .status(500)
-      .json({ error: "Terjadi kesalahan server saat mengambil data tim." });
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server saat mengambil data tim.",
+    });
   }
 };
