@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
+import {
+  crawlLombaHubHomepage,
+  scrapeLombaHubDetail,
+} from "../utils/lombahubScraper";
 
 const prisma = new PrismaClient();
 
@@ -115,10 +119,34 @@ export const getCompetitions = async (
 
     const totalPages = Math.ceil(totalItems / limit);
 
+    const todayParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+
+    const getDatePart = (type: string): string =>
+      todayParts.find((part) => part.type === type)?.value ?? "";
+
+    const todayJakarta = `${getDatePart("year")}-${getDatePart("month")}-${getDatePart("day")}`;
+
+    const competitionsWithStatus = competitions.map((competition) => {
+      const deadlineDate = new Date(competition.deadline);
+      const deadlineKey = deadlineDate.toISOString().slice(0, 10);
+
+      const statusLomba = deadlineKey < todayJakarta ? "KEDALUWARSA" : "AKTIF";
+
+      return {
+        ...competition,
+        statusLomba,
+      };
+    });
+
     return res.status(200).json({
       message: "Daftar kompetisi berhasil diambil",
       total: totalItems,
-      data: competitions,
+      data: competitionsWithStatus,
       pagination: {
         page,
         limit,
@@ -133,6 +161,65 @@ export const getCompetitions = async (
 
     return res.status(500).json({
       error: "Terjadi kesalahan server saat mengambil data kompetisi.",
+    });
+  }
+};
+
+export const previewLombaHubCrawl = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  try {
+    const limit = Number(req.query.limit ?? 5);
+
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 8) {
+      return res.status(400).json({
+        error: "Limit harus berupa angka antara 1 dan 8.",
+      });
+    }
+
+    const data = await crawlLombaHubHomepage(limit);
+
+    return res.status(200).json({
+      message: "Preview crawling LombaHub berhasil diproses.",
+      total: data.length,
+      berhasil: data.filter((item) => item.ok).length,
+      gagal: data.filter((item) => !item.ok).length,
+      data,
+    });
+  } catch (error: any) {
+    console.error("Error previewLombaHubCrawl:", error);
+
+    return res.status(502).json({
+      error: error?.message || "Crawling LombaHub gagal.",
+    });
+  }
+};
+
+export const previewLombaHubDetail = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  try {
+    const { url } = req.body ?? {};
+
+    if (typeof url !== "string" || !url.trim()) {
+      return res.status(400).json({
+        error: "URL detail lomba wajib diisi.",
+      });
+    }
+
+    const data = await scrapeLombaHubDetail(url.trim());
+
+    return res.status(200).json({
+      message: "Preview detail lomba berhasil diambil.",
+      data,
+    });
+  } catch (error: any) {
+    console.error("Error previewLombaHubDetail:", error);
+
+    return res.status(502).json({
+      error: error?.message || "Scraping detail lomba gagal.",
     });
   }
 };
