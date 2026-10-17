@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { cekStatusMahasiswa } from "../utils/nimfinder";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
@@ -8,42 +8,6 @@ import crypto from "crypto";
 import { AuthRequest } from "../middleware/authMiddleware";
 
 const prisma = new PrismaClient();
-
-const lockTeamRow = async (
-  tx: Prisma.TransactionClient,
-  teamId: number,
-): Promise<boolean> => {
-  const rows = await tx.$queryRaw<Array<{ id: number }>>`
-    SELECT id
-    FROM \`Team\`
-    WHERE id = ${teamId}
-    FOR UPDATE
-  `;
-
-  return rows.length > 0;
-};
-
-const getCurrentMemberCount = async (
-  tx: Prisma.TransactionClient,
-  teamId: number,
-  leaderId: number,
-): Promise<number> => {
-  const memberCount = await tx.teamMember.count({
-    where: { teamId },
-  });
-
-  const leaderMembership = await tx.teamMember.findUnique({
-    where: {
-      teamId_userId: {
-        teamId,
-        userId: leaderId,
-      },
-    },
-    select: { id: true },
-  });
-
-  return memberCount + (leaderMembership ? 0 : 1);
-};
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
