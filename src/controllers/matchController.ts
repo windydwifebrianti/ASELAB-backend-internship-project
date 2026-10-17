@@ -46,6 +46,12 @@ export const getTeamRecommendations = async (
         ...filterConditions,
         leaderId: { not: userId },
         swipes: { none: { userId: userId } },
+
+        blacklists: {
+          none: {
+            blockedUserId: Number(userId),
+          },
+        },
       },
       include: {
         leader: { select: { nama: true } },
@@ -137,6 +143,24 @@ export const swipeTeam = async (
       });
     }
 
+    const blacklistEntry = await prisma.teamBlacklist.findUnique({
+      where: {
+        teamId_blockedUserId: {
+          teamId: teamIdNumber,
+          blockedUserId: Number(userId),
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (blacklistEntry) {
+      return res.status(403).json({
+        error: "Anda tidak dapat berinteraksi dengan tim ini.",
+      });
+    }
+
     const swipe = await prisma.teamSwipe.upsert({
       where: { userId_teamId: { userId, teamId: teamIdNumber } },
       update: { action },
@@ -198,6 +222,25 @@ export const createJoinRequest = async (
         return {
           statusCode: 404,
           error: "Tim tidak ditemukan.",
+        };
+      }
+
+      const blacklistEntry = await tx.teamBlacklist.findUnique({
+        where: {
+          teamId_blockedUserId: {
+            teamId,
+            blockedUserId: userId,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (blacklistEntry) {
+        return {
+          statusCode: 403,
+          error: "Anda tidak dapat mengajukan permintaan ke tim ini.",
         };
       }
 
@@ -270,7 +313,7 @@ export const createJoinRequest = async (
       return { data: joinRequest };
     });
 
-    if ("statusCode" in result) {
+    if ("statusCode" in result && typeof result.statusCode === "number") {
       return res.status(result.statusCode).json({
         error: result.error,
       });
@@ -382,6 +425,27 @@ export const manageJoinRequest = async (
       }
 
       if (status === "ACCEPTED") {
+        const blacklistEntry = await tx.teamBlacklist.findUnique({
+          where: {
+            teamId_blockedUserId: {
+              teamId: currentRequest.teamId,
+              blockedUserId: currentRequest.userId,
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (blacklistEntry) {
+          return {
+            statusCode: 403,
+            error: "Pengguna ini masuk blacklist tim dan tidak dapat diterima.",
+          };
+        }
+      }
+
+      if (status === "ACCEPTED") {
         const existingMember = await tx.teamMember.findUnique({
           where: {
             teamId_userId: {
@@ -452,7 +516,7 @@ export const manageJoinRequest = async (
       };
     });
 
-    if ("statusCode" in result) {
+    if ("statusCode" in result && typeof result.statusCode === "number") {
       return res.status(result.statusCode).json({
         error: result.error,
       });
