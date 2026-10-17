@@ -14,46 +14,47 @@ enum TempRegistrationStatus {
 
 // Tabel Pengguna (Kredensial & Autentikasi)
 model User {
-  id             Int       @id @default(autoincrement())
-  nim            String    @unique 
-  emailInstitusi String    @unique
-  password       String?   // Opsional: diisi hash untuk login lokal (NFR-04), null jika via SSO
+  id             Int      @id @default(autoincrement())
+  nim            String   @unique
+  emailInstitusi String   @unique
+  password       String? // Opsional: diisi hash untuk login lokal (NFR-04), null jika via SSO
   nama           String
-  isVerified     Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  isVerified     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  teamsLed    Team[]       @relation("TeamLeader")
-  teamMembers TeamMember[]
-  teamSwipes    TeamSwipe[]
-  joinRequests  JoinRequest[]  @relation("UserJoinRequests")
-  notifications Notification[] @relation("UserNotifications")
-  
+  teamsLed              Team[]          @relation("TeamLeader")
+  teamMembers           TeamMember[]
+  teamSwipes            TeamSwipe[]
+  joinRequests          JoinRequest[]   @relation("UserJoinRequests")
+  notifications         Notification[]  @relation("UserNotifications")
+  teamBlacklistEntries  TeamBlacklist[] @relation("TeamBlacklistBlockedUser")
+  teamBlacklistsCreated TeamBlacklist[] @relation("TeamBlacklistCreatedBy")
 
   // Relasi ke Profil (FR-PM-01)
-  profile        Profile?
+  profile Profile?
 
-  reportsMade     Report[]  @relation("Reporter")
-  reportsReceived Report[]  @relation("Reported")
+  reportsMade     Report[] @relation("Reporter")
+  reportsReceived Report[] @relation("Reported")
 
-  blocksMade      Block[]   @relation("Blocker")
-  blocksReceived  Block[]   @relation("Blocked")
+  blocksMade     Block[] @relation("Blocker")
+  blocksReceived Block[] @relation("Blocked")
 }
 
 model TempRegistration {
-  id         Int                    @id @default(autoincrement())
-  nama       String
-  nim        String                 @unique
-  email      String                 @unique
-  password   String
-  token      String                 @unique
-  code       String
-  attemptCode    Int                    @default(0)
-  attemptResend  Int                    @default(0)
-  status     TempRegistrationStatus @default(PENDING)
-  expiresAt  DateTime
-  createdAt  DateTime               @default(now())
-  updatedAt  DateTime               @updatedAt
+  id            Int                    @id @default(autoincrement())
+  nama          String
+  nim           String                 @unique
+  email         String                 @unique
+  password      String
+  token         String                 @unique
+  code          String
+  attemptCode   Int                    @default(0)
+  attemptResend Int                    @default(0)
+  status        TempRegistrationStatus @default(PENDING)
+  expiresAt     DateTime
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
 }
 
 // Tabel Profil Khusus (FR-PM-02, FR-PM-03, FR-PM-04)
@@ -61,14 +62,14 @@ model Profile {
   id              Int      @id @default(autoincrement())
   userId          Int      @unique // Menjamin relasi mutlak 1:1 (NFR-14)
   jurusan         String?
-  skill           Json?    // MySQL menggunakan Json untuk menyimpan array/list keahlian
-  minat           Json?    
+  skill           Json? // MySQL menggunakan Json untuk menyimpan array/list keahlian
+  minat           Json?
   pengalamanLomba String?  @db.Text
   updatedAt       DateTime @updatedAt
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cvPath          String? @db.VarChar(255)
-  fotoProfilUrl   String? @db.VarChar(500)
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvPath        String? @db.VarChar(255)
+  fotoProfilUrl String? @db.VarChar(500)
 }
 
 // Tabel Kompetisi (Competition Information & Discovery)
@@ -82,7 +83,7 @@ model Competition {
   ketentuan        String?  @db.Text
   biayaPendaftaran String?
   hadiah           String?
-  tingkatLomba     String?  
+  tingkatLomba     String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -115,31 +116,47 @@ model Team {
   id              Int      @id @default(autoincrement())
   nama            String
   deskripsi       String   @db.Text
-  kompetisi       String   // Nama lomba yang akan diikuti
-  skillDibutuhkan Json?    // Disimpan sebagai array JSON seperti halnya profil
-  leaderId        Int      
+  kompetisi       String // Nama lomba yang akan diikuti
+  skillDibutuhkan Json? // Disimpan sebagai array JSON seperti halnya profil
+  leaderId        Int
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  leader          User         @relation("TeamLeader", fields: [leaderId], references: [id], onDelete: Restrict)
-  members         TeamMember[] 
-  swipes        TeamSwipe[]
-  joinRequests  JoinRequest[]  @relation("TeamJoinRequests")
-  kuota Int @default(5) // Tambahan untuk memunculkan batas maksimal anggota (misal 5)
+  leader       User            @relation("TeamLeader", fields: [leaderId], references: [id], onDelete: Restrict)
+  members      TeamMember[]
+  swipes       TeamSwipe[]
+  joinRequests JoinRequest[]   @relation("TeamJoinRequests")
+  kuota        Int             @default(5) // Tambahan untuk memunculkan batas maksimal anggota (misal 5)
+  blacklists   TeamBlacklist[]
+}
+
+model TeamBlacklist {
+  id            Int      @id @default(autoincrement())
+  teamId        Int
+  blockedUserId Int
+  createdById   Int
+  createdAt     DateTime @default(now())
+
+  team        Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  blockedUser User @relation("TeamBlacklistBlockedUser", fields: [blockedUserId], references: [id], onDelete: Cascade)
+  createdBy   User @relation("TeamBlacklistCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, blockedUserId])
+  @@index([blockedUserId])
 }
 
 model TeamMember {
-  id        Int      @id @default(autoincrement())
-  teamId    Int
-  userId    Int
-  role      String   @default("MEMBER") // Bisa berisi "LEADER" atau "MEMBER"
-  joinedAt  DateTime @default(now())
+  id       Int      @id @default(autoincrement())
+  teamId   Int
+  userId   Int
+  role     String   @default("MEMBER") // Bisa berisi "LEADER" atau "MEMBER"
+  joinedAt DateTime @default(now())
 
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // NFR-14: Memastikan satu orang tidak terdaftar ganda di tim yang sama
-  @@unique([teamId, userId]) 
+  @@unique([teamId, userId])
 }
 
 // Tabel Swipe Calon Tim (FR-MTC-06)
@@ -147,11 +164,11 @@ model TeamSwipe {
   id        Int      @id @default(autoincrement())
   userId    Int
   teamId    Int
-  action    String   // Berisi "LIKE" atau "PASS"
+  action    String // Berisi "LIKE" atau "PASS"
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([userId, teamId]) // NFR-14: Mencegah user melakukan swipe ganda pada tim yang sama
 }
@@ -166,8 +183,8 @@ model JoinRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User     @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
-  team      Team     @relation("TeamJoinRequests", fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation("TeamJoinRequests", fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([userId, teamId]) // NFR-14: Mencegah spam Join Request
 }
@@ -175,13 +192,13 @@ model JoinRequest {
 // Tabel Notifikasi (FR-MTC-10)
 model Notification {
   id        Int      @id @default(autoincrement())
-  userId    Int      // Penerima notifikasi
+  userId    Int // Penerima notifikasi
   title     String
   message   String   @db.Text
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Tabel Penyimpanan OTP (Sementara)
