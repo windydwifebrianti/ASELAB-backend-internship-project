@@ -9,8 +9,15 @@ import {
   requestOtp,
   requestRegisterOtp,
   getRegisterSession,
+  uploadCV,
+  downloadCV,
+  uploadProfileImage,
 } from "../controllers/authController";
 import { verifyToken } from "../middleware/authMiddleware";
+import {
+  uploadCvMiddleware,
+  uploadProfileImageMiddleware,
+} from "../middleware/uploadMiddleware";
 
 const router = Router();
 
@@ -336,5 +343,104 @@ router.post("/request-register-otp", requestRegisterOtp);
  *         description: Kesalahan server
  */
 router.post("/register/session", getRegisterSession);
+
+/**
+ * @openapi
+ * /api/auth/profile/cv:
+ *   post:
+ *     tags: [Profile]
+ *     summary: Mengunggah CV pengguna
+ *     description: Mengunggah CV dalam format PDF. Memerlukan autentikasi.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - cv
+ *             properties:
+ *               cv:
+ *                 type: string
+ *                 format: binary
+ *                 description: File CV dalam format PDF, maksimal 10 MB.
+ *     responses:
+ *       "200":
+ *         description: CV berhasil diunggah
+ *       "400":
+ *         description: File tidak dikirim atau format file tidak valid
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.post("/profile/cv", verifyToken, uploadCvMiddleware, uploadCV);
+
+/**
+ * @openapi
+ * /api/auth/profile/cv:
+ *   get:
+ *     tags: [Profile]
+ *     summary: Mengunduh CV pengguna yang login
+ *     description: Mengunduh CV milik pengguna yang sedang login.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: File CV berhasil ditemukan
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia
+ *       "404":
+ *         description: CV belum tersedia atau file tidak ditemukan
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.get("/profile/cv", verifyToken, downloadCV);
+
+/**
+ * @openapi
+ * /api/auth/profile/image:
+ *   post:
+ *     tags: [Profile]
+ *     summary: Mengunggah gambar profil
+ *     description: Mengunggah atau mengganti gambar profil pengguna.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fotoProfil
+ *             properties:
+ *               fotoProfil:
+ *                 type: string
+ *                 format: binary
+ *                 description: File gambar JPG, PNG, atau WEBP, maksimal 5 MB.
+ *     responses:
+ *       "200":
+ *         description: Gambar profil berhasil diperbarui
+ *       "400":
+ *         description: File tidak dikirim atau format gambar tidak valid
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.post(
+  "/profile/image",
+  verifyToken,
+  uploadProfileImageMiddleware,
+  uploadProfileImage,
+);
 
 export default router;
