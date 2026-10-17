@@ -558,6 +558,108 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
   }
 };
 
+export const changePassword = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const userId = Number(req.user?.userId);
+    const { currentPassword, newPassword, confirmPassword } = req.body ?? {};
+
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return res.status(401).json({
+        error: "Identitas pengguna tidak valid.",
+      });
+    }
+
+    if (
+      typeof currentPassword !== "string" ||
+      typeof newPassword !== "string" ||
+      typeof confirmPassword !== "string"
+    ) {
+      return res.status(400).json({
+        error:
+          "Password lama, password baru, dan konfirmasi password wajib diisi.",
+      });
+    }
+
+    const oldPassword = currentPassword.trim();
+    const nextPassword = newPassword.trim();
+    const confirmation = confirmPassword.trim();
+
+    if (!oldPassword || !nextPassword || !confirmation) {
+      return res.status(400).json({
+        error: "Semua field password wajib diisi.",
+      });
+    }
+
+    if (nextPassword.length < 8) {
+      return res.status(400).json({
+        error: "Password baru minimal 8 karakter.",
+      });
+    }
+
+    if (nextPassword !== confirmation) {
+      return res.status(400).json({
+        error: "Konfirmasi password baru tidak cocok.",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        password: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        error: "Pengguna tidak ditemukan.",
+      });
+    }
+
+    if (!user.password) {
+      return res.status(400).json({
+        error: "Akun ini belum memiliki password lokal yang dapat diubah.",
+      });
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(oldPassword, user.password);
+
+    if (!isPasswordCorrect) {
+      return res.status(400).json({
+        error: "Password lama tidak sesuai.",
+      });
+    }
+
+    if (oldPassword === nextPassword) {
+      return res.status(400).json({
+        error: "Password baru harus berbeda dari password lama.",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(nextPassword, 10);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Password berhasil diubah.",
+    });
+  } catch (error) {
+    console.error("Error changePassword:", error);
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server saat mengubah password.",
+    });
+  }
+};
+
 export const getProfile = async (
   req: AuthRequest,
   res: Response,
