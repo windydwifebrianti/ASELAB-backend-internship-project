@@ -1,8 +1,22 @@
 import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
 
 const prisma = new PrismaClient();
+
+const lockTeamRow = async (
+  tx: Prisma.TransactionClient,
+  teamId: number,
+): Promise<boolean> => {
+  const rows = await tx.$queryRaw<Array<{ id: number }>>`
+    SELECT id
+    FROM \`Team\`
+    WHERE id = ${teamId}
+    FOR UPDATE
+  `;
+
+  return rows.length > 0;
+};
 
 export const getTeamRecommendations = async (
   req: AuthRequest,
@@ -142,26 +156,107 @@ export const createJoinRequest = async (
   res: Response,
 ): Promise<any> => {
   try {
-    const userId = req.user.userId;
-    const { teamId, pesan } = req.body;
+    const userId = Number(req.user?.userId);
+    const teamId = Number(req.body?.teamId);
+    const { pesan } = req.body ?? {};
 
-    const teamIdNumber = Number(teamId);
-
-    if (!Number.isSafeInteger(teamIdNumber) || teamIdNumber <= 0) {
-      return res.status(400).json({
-        error: "ID tim tidak valid.",
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return res.status(401).json({
+        error: "Identitas pengguna tidak valid.",
       });
     }
 
-    const team = await prisma.team.findUnique({
-      where: { id: teamIdNumber },
-    });
+    if (!Number.isSafeInteger(teamId) || teamId <= 0) {
+      return res.status(400).json({
+        error: "teamId harus berupa angka positif.",
+      });
+    }
 
-    if (!team) return res.status(404).json({ error: "Tim tidak ditemukan." });
+    if (pesan !== undefined && pesan !== null && typeof pesan !== "string") {
+      return res.status(400).json({
+        error: "pesan harus berupa teks.",
+      });
+    }
+
+    const pesanBersih = typeof pesan === "string" ? pesan.trim() || null : null;
 
     const result = await prisma.$transaction(async (tx) => {
-      const request = await tx.joinRequest.create({
-        data: { userId, teamId: teamIdNumber, pesan },
+      const teamExists = await lockTeamRow(tx, teamId);
+
+      if (!teamExists) {
+        return {
+          statusCode: 404,
+          error: "Tim tidak ditemukan.",
+        };
+      }
+
+      const team = await tx.team.findUnique({
+        where: { id: teamId },
+      });
+
+      if (!team) {
+        return {
+          statusCode: 404,
+          error: "Tim tidak ditemukan.",
+        };
+      }
+
+      if (team.leaderId === userId) {
+        return {
+          statusCode: 400,
+          error: "Anda tidak dapat bergabung dengan tim sendiri.",
+        };
+      }
+
+      const existingMember = await tx.teamMember.findUnique({
+        where: {
+          teamId_userId: {
+            teamId,
+            userId,
+          },
+        },
+      });
+
+      if (existingMember) {
+        return {
+          statusCode: 409,
+          error: "Anda sudah menjadi anggota tim ini.",
+        };
+      }
+
+      const existingRequest = await tx.joinRequest.findUnique({
+        where: {
+          userId_teamId: {
+            userId,
+            teamId,
+          },
+        },
+      });
+
+      if (existingRequest) {
+        return {
+          statusCode: 409,
+          error: "Anda sudah pernah mengirim permintaan ke tim ini.",
+        };
+      }
+
+      const memberCount = await tx.teamMember.count({
+        where: { teamId },
+      });
+
+      if (memberCount >= team.kuota) {
+        return {
+          statusCode: 409,
+          error: "Tim sudah penuh.",
+        };
+      }
+
+      const joinRequest = await tx.joinRequest.create({
+        data: {
+          userId,
+          teamId,
+          pesan: pesanBersih,
+        },
       });
 
       await tx.notification.create({
@@ -172,18 +267,37 @@ export const createJoinRequest = async (
         },
       });
 
-      return request;
+      return { data: joinRequest };
     });
 
-    return res
-      .status(201)
-      .json({ message: "Join Request berhasil dikirim.", data: result });
+    if ("statusCode" in result) {
+      return res.status(result.statusCode).json({
+        error: result.error,
+      });
+    }
+
+    return res.status(201).json({
+      message: "Join Request berhasil dikirim.",
+      data: result.data,
+    });
   } catch (error: any) {
-    if (error.code === "P2002")
-      return res
-        .status(400)
-        .json({ error: "Anda sudah mengirim permintaan ke tim ini." });
-    return res.status(500).json({ error: "Terjadi kesalahan server." });
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        error: "Anda sudah pernah mengirim permintaan ke tim ini.",
+      });
+    }
+
+    if (error?.code === "P2034") {
+      return res.status(409).json({
+        error: "Terjadi perubahan bersamaan. Silakan coba kembali.",
+      });
+    }
+
+    console.error("Error createJoinRequest:", error);
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server.",
+    });
   }
 };
 
@@ -192,9 +306,15 @@ export const manageJoinRequest = async (
   res: Response,
 ): Promise<any> => {
   try {
-    const leaderId = req.user.userId;
+    const leaderId = Number(req.user?.userId);
     const requestId = Number(req.params.id);
-    const { status } = req.body;
+    const { status } = req.body ?? {};
+
+    if (!Number.isSafeInteger(leaderId) || leaderId <= 0) {
+      return res.status(401).json({
+        error: "Identitas pengguna tidak valid.",
+      });
+    }
 
     if (!Number.isSafeInteger(requestId) || requestId <= 0) {
       return res.status(400).json({
@@ -202,53 +322,163 @@ export const manageJoinRequest = async (
       });
     }
 
-    const request = await prisma.joinRequest.findUnique({
+    if (status !== "ACCEPTED" && status !== "REJECTED") {
+      return res.status(400).json({
+        error: 'Status harus "ACCEPTED" atau "REJECTED".',
+      });
+    }
+
+    const initialRequest = await prisma.joinRequest.findUnique({
       where: { id: requestId },
       include: { team: true },
     });
 
-    if (!request)
-      return res.status(404).json({ error: "Request tidak ditemukan." });
-
-    if (request.team.leaderId !== leaderId) {
-      return res
-        .status(403)
-        .json({ error: "Akses ditolak. Anda bukan Team Leader." });
+    if (!initialRequest) {
+      return res.status(404).json({
+        error: "Request tidak ditemukan.",
+      });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.joinRequest.update({
+    if (initialRequest.team.leaderId !== leaderId) {
+      return res.status(403).json({
+        error: "Akses ditolak. Anda bukan Team Leader.",
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const teamExists = await lockTeamRow(tx, initialRequest.teamId);
+
+      if (!teamExists) {
+        return {
+          statusCode: 404,
+          error: "Tim tidak ditemukan.",
+        };
+      }
+
+      const currentRequest = await tx.joinRequest.findUnique({
         where: { id: requestId },
+        include: { team: true },
+      });
+
+      if (!currentRequest) {
+        return {
+          statusCode: 404,
+          error: "Request tidak ditemukan.",
+        };
+      }
+
+      if (currentRequest.team.leaderId !== leaderId) {
+        return {
+          statusCode: 403,
+          error: "Akses ditolak. Anda bukan Team Leader.",
+        };
+      }
+
+      if (currentRequest.status !== "PENDING") {
+        return {
+          statusCode: 409,
+          error: "Request ini sudah diproses sebelumnya.",
+        };
+      }
+
+      if (status === "ACCEPTED") {
+        const existingMember = await tx.teamMember.findUnique({
+          where: {
+            teamId_userId: {
+              teamId: currentRequest.teamId,
+              userId: currentRequest.userId,
+            },
+          },
+        });
+
+        if (existingMember) {
+          return {
+            statusCode: 409,
+            error: "Pengguna sudah menjadi anggota tim ini.",
+          };
+        }
+
+        const memberCount = await tx.teamMember.count({
+          where: {
+            teamId: currentRequest.teamId,
+          },
+        });
+
+        if (memberCount >= currentRequest.team.kuota) {
+          return {
+            statusCode: 409,
+            error: "Tim sudah penuh. Request tidak dapat diterima.",
+          };
+        }
+      }
+
+      const updated = await tx.joinRequest.updateMany({
+        where: {
+          id: requestId,
+          status: "PENDING",
+        },
         data: { status },
       });
+
+      if (updated.count !== 1) {
+        return {
+          statusCode: 409,
+          error: "Request sudah diproses oleh proses lain.",
+        };
+      }
 
       if (status === "ACCEPTED") {
         await tx.teamMember.create({
           data: {
-            teamId: request.teamId,
-            userId: request.userId,
+            teamId: currentRequest.teamId,
+            userId: currentRequest.userId,
             role: "MEMBER",
           },
         });
       }
 
       const statusText = status === "ACCEPTED" ? "diterima" : "ditolak";
+
       await tx.notification.create({
         data: {
-          userId: request.userId,
+          userId: currentRequest.userId,
           title: "Update Join Request",
-          message: `Permintaan Anda untuk bergabung dengan tim ${request.team.nama} telah ${statusText}.`,
+          message: `Permintaan Anda untuk bergabung dengan tim ${currentRequest.team.nama} telah ${statusText}.`,
         },
       });
+
+      return {
+        message: `Join Request berhasil ${status}.`,
+      };
     });
 
-    return res
-      .status(200)
-      .json({ message: `Join Request berhasil ${status}.` });
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ error: "Terjadi kesalahan server saat mengelola request." });
+    if ("statusCode" in result) {
+      return res.status(result.statusCode).json({
+        error: result.error,
+      });
+    }
+
+    return res.status(200).json({
+      message: result.message,
+    });
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        error: "Pengguna sudah terdaftar sebagai anggota tim.",
+      });
+    }
+
+    if (error?.code === "P2034") {
+      return res.status(409).json({
+        error: "Terjadi perubahan bersamaan. Silakan coba kembali.",
+      });
+    }
+
+    console.error("Error manageJoinRequest:", error);
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server saat mengelola request.",
+    });
   }
 };
 
