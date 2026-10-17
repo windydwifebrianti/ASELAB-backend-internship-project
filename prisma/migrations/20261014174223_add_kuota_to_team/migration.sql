@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `Team` ADD COLUMN `kuota` INTEGER NOT NULL DEFAULT 5;
