@@ -7,6 +7,7 @@ import teamRoutes from "./routes/teamRoutes";
 import matchRoutes from "./routes/matchRoutes";
 import competitionRoutes from "./routes/competitionRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
+import teamBlacklistRoutes from "./routes/teamBlacklistRoutes";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,7 @@ app.use(
 );
 
 // Routes
+app.use("/api/teams", teamBlacklistRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/teams", teamRoutes);
