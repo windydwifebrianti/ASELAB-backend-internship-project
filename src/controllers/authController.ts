@@ -889,6 +889,57 @@ export const downloadCV = async (
   }
 };
 
+export const deleteCV = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const userId = Number(req.user?.userId);
+    const profile = await prisma.profile.findUnique({
+      where: { userId },
+      select: { cvPath: true },
+    });
+
+    if (!profile?.cvPath) {
+      return res.status(404).json({
+        error: "CV belum tersedia.",
+      });
+    }
+
+    if (path.basename(profile.cvPath) !== profile.cvPath) {
+      return res.status(400).json({
+        error: "Lokasi file tidak valid.",
+      });
+    }
+
+    const filePath = path.resolve(
+      process.cwd(),
+      "uploads",
+      "cv",
+      profile.cvPath,
+    );
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    await prisma.profile.update({
+      where: { userId },
+      data: { cvPath: null },
+    });
+
+    return res.status(200).json({
+      message: "CV berhasil dihapus.",
+    });
+  } catch (error) {
+    console.error("Error deleteCV:", error);
+
+    return res.status(500).json({
+      error: "Gagal menghapus CV.",
+    });
+  }
+};
+
 export const uploadProfileImage = async (
   req: AuthRequest,
   res: Response,

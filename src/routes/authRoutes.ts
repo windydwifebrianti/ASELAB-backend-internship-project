@@ -11,6 +11,7 @@ import {
   getRegisterSession,
   uploadCV,
   downloadCV,
+  deleteCV,
   uploadProfileImage,
 } from "../controllers/authController";
 import { verifyToken } from "../middleware/authMiddleware";
@@ -233,8 +234,6 @@ router.post("/profile", verifyToken, upsertProfile);
  *       "500":
  *         description: Kesalahan server
  */
-router.get("/profile/:id", verifyToken, getPublicProfile);
-
 /**
  * @openapi
  * /api/auth/request-otp:
@@ -406,6 +405,25 @@ router.get("/profile/cv", verifyToken, downloadCV);
 
 /**
  * @openapi
+ * /api/auth/profile/cv:
+ *   delete:
+ *     tags: [Profile]
+ *     summary: Menghapus CV pengguna
+ *     description: Menghapus CV milik pengguna yang sedang login.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: CV berhasil dihapus
+ *       "404":
+ *         description: CV belum tersedia
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.delete("/profile/cv", verifyToken, deleteCV);
+
+/**
+ * @openapi
  * /api/auth/profile/image:
  *   post:
  *     tags: [Profile]
@@ -442,5 +460,7 @@ router.post(
   uploadProfileImageMiddleware,
   uploadProfileImage,
 );
+
+router.get("/profile/:id", verifyToken, getPublicProfile);
 
 export default router;
