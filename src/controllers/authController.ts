@@ -707,7 +707,7 @@ export const upsertProfile = async (
 ): Promise<Response> => {
   try {
     const userId = req.user.userId;
-    const { jurusan, skill, minat, pengalamanLomba } = req.body;
+    const { jurusan, skill, minat, tentang, pengalamanLomba } = req.body;
 
     if (!jurusan) {
       return res.status(400).json({
@@ -723,6 +723,7 @@ export const upsertProfile = async (
         jurusan,
         skill: skill || [],
         minat: minat || [],
+        tentang: tentang || "",
         pengalamanLomba: pengalamanLomba || "",
       },
       create: {
@@ -730,6 +731,7 @@ export const upsertProfile = async (
         jurusan,
         skill: skill || [],
         minat: minat || [],
+        tentang: tentang || "",
         pengalamanLomba: pengalamanLomba || "",
       },
     });

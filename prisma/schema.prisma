@@ -64,6 +64,7 @@ model Profile {
   jurusan         String?
   skill           Json? // MySQL menggunakan Json untuk menyimpan array/list keahlian
   minat           Json?
+  tentang         String?  @db.Text
   pengalamanLomba String?  @db.Text
   updatedAt       DateTime @updatedAt
 
