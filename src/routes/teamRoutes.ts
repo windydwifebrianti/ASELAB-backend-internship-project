@@ -37,11 +37,19 @@ const router = Router();
  *               kompetisi:
  *                 type: string
  *                 example: Hackathon Nasional
- *               skillDibutuhkan:
+ *                *               skillDibutuhkan:
  *                 type: array
  *                 items:
  *                   type: string
  *                 example: ["Node.js", "PostgreSQL"]
+ *               linkGrupWhatsapp:
+ *                 type: string
+ *                 nullable: true
+ *                 example: "https://chat.whatsapp.com/contoh-link"
+ *               linkChannelDiscord:
+ *                 type: string
+ *                 nullable: true
+ *                 example: "https://discord.gg/contoh-link"
  *     responses:
  *       "201":
  *         description: Tim berhasil dibuat
@@ -82,10 +90,18 @@ router.post("/", verifyToken, createTeam);
  *                 type: string
  *               kompetisi:
  *                 type: string
- *               skillDibutuhkan:
+ *                *               skillDibutuhkan:
  *                 type: array
  *                 items:
  *                   type: string
+ *               linkGrupWhatsapp:
+ *                 type: string
+ *                 nullable: true
+ *                 example: "https://chat.whatsapp.com/contoh-link"
+ *               linkChannelDiscord:
+ *                 type: string
+ *                 nullable: true
+ *                 example: "https://discord.gg/contoh-link"
  *     responses:
  *       "200":
  *         description: Informasi tim berhasil diperbarui
