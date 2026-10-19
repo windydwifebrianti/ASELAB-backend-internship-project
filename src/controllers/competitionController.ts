@@ -5,8 +5,106 @@ import {
   crawlLombaHubHomepage,
   scrapeLombaHubDetail,
 } from "../utils/lombahubScraper";
+import type { LombaHubPreview } from "../utils/lombahubScraper";
 
 const prisma = new PrismaClient();
+
+function prepareLombaHubData(data: LombaHubPreview) {
+  async function saveLombaHubData(data: LombaHubPreview) {
+    const prepared = prepareLombaHubData(data);
+
+    if ("error" in prepared) {
+      return {
+        ok: false as const,
+        sourceUrl: data.sourceUrl,
+        error: prepared.error,
+      };
+    }
+
+    const payload = prepared.payload;
+
+    const existing = await prisma.competition.findUnique({
+      where: {
+        sourceUrl: payload.sourceUrl,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const competition = await prisma.competition.upsert({
+      where: {
+        sourceUrl: payload.sourceUrl,
+      },
+      create: payload,
+      update: payload,
+    });
+
+    return {
+      ok: true as const,
+      sourceUrl: payload.sourceUrl,
+      action: existing ? ("updated" as const) : ("created" as const),
+      competition,
+    };
+  }
+
+  const sourceUrl = data.sourceUrl.trim();
+  const namaLomba = data.namaLomba.trim();
+  const penyelenggara = data.penyelenggara?.trim() || "";
+  const infoPendaftaran = data.infoPendaftaran?.trim() || "";
+
+  if (!sourceUrl || sourceUrl.length > 191) {
+    return {
+      error: "URL sumber kosong atau melebihi 191 karakter.",
+    };
+  }
+
+  if (!namaLomba) {
+    return { error: "Nama lomba tidak ditemukan." };
+  }
+
+  if (!penyelenggara) {
+    return {
+      error: "Penyelenggara tidak ditemukan. Data tidak disimpan.",
+    };
+  }
+
+  if (!data.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(data.deadline)) {
+    return {
+      error: "Deadline tidak ditemukan atau format tanggal tidak valid.",
+    };
+  }
+
+  const deadline = new Date(`${data.deadline}T00:00:00.000Z`);
+
+  if (Number.isNaN(deadline.getTime())) {
+    return { error: "Tanggal deadline tidak valid." };
+  }
+
+  if (!infoPendaftaran) {
+    return {
+      error: "Informasi lomba tidak ditemukan. Data tidak disimpan.",
+    };
+  }
+
+  return {
+    payload: {
+      sourceUrl,
+      namaLomba,
+      penyelenggara,
+      kategori: data.kategori?.trim() || "Lain-lain",
+      deadline,
+      infoPendaftaran,
+      ketentuan: data.ketentuan?.trim() || null,
+      biayaPendaftaran: data.biayaPendaftaran?.trim() || null,
+      hadiah: data.hadiah?.trim() || null,
+      tingkatLomba: data.tingkatLomba?.trim() || null,
+      peserta: data.peserta?.trim() || null,
+      registrationUrl: data.registrationUrl?.trim() || null,
+      gambarUrl: data.gambarUrl?.trim() || null,
+    },
+  };
+}
 
 export const getCompetitions = async (
   req: AuthRequest,
