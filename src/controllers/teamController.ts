@@ -17,6 +17,7 @@ export const createTeam = async (
       skillDibutuhkan,
       linkGrupWhatsapp,
       linkChannelDiscord,
+      kuota,
     } = req.body;
 
     if (
@@ -52,6 +53,15 @@ export const createTeam = async (
         .json({ error: "Nama, deskripsi, dan kompetisi tim wajib diisi." });
     }
 
+    if (
+      kuota !== undefined &&
+      (!Number.isSafeInteger(kuota) || kuota < 1 || kuota > 100)
+    ) {
+      return res.status(400).json({
+        error: "Kuota harus berupa bilangan bulat antara 1 sampai 100.",
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const team = await tx.team.create({
         data: {
@@ -67,6 +77,7 @@ export const createTeam = async (
             typeof linkChannelDiscord === "string"
               ? linkChannelDiscord.trim() || null
               : null,
+          kuota: kuota ?? 5,
           leaderId: Number(leaderId),
         },
       });
@@ -115,6 +126,7 @@ export const updateTeam = async (
       skillDibutuhkan,
       linkGrupWhatsapp,
       linkChannelDiscord,
+      kuota,
     } = req.body;
 
     const team = await prisma.team.findUnique({ where: { id: teamId } });
@@ -125,6 +137,18 @@ export const updateTeam = async (
       return res.status(403).json({
         error: "Akses ditolak! Hanya Team Leader yang dapat mengubah info tim.",
       });
+    }
+
+    if (kuota !== undefined) {
+      const jumlahAnggotaSaatIni = await prisma.teamMember.count({
+        where: { teamId },
+      });
+
+      if (kuota < jumlahAnggotaSaatIni) {
+        return res.status(400).json({
+          error: `Kuota tidak boleh kurang dari jumlah anggota saat ini (${jumlahAnggotaSaatIni}).`,
+        });
+      }
     }
 
     const teamWithLinks = team as typeof team & {
@@ -145,6 +169,15 @@ export const updateTeam = async (
       });
     }
 
+    if (
+      kuota !== undefined &&
+      (!Number.isSafeInteger(kuota) || kuota < 1 || kuota > 100)
+    ) {
+      return res.status(400).json({
+        error: "Kuota harus berupa bilangan bulat antara 1 sampai 100.",
+      });
+    }
+
     const updatedTeam = await prisma.team.update({
       where: { id: teamId },
       data: {
@@ -152,6 +185,7 @@ export const updateTeam = async (
         deskripsi: deskripsi || team.deskripsi,
         kompetisi: kompetisi || team.kompetisi,
         skillDibutuhkan: skillDibutuhkan ?? team.skillDibutuhkan,
+        kuota: kuota === undefined ? team.kuota : kuota,
 
         linkGrupWhatsapp:
           linkGrupWhatsapp === undefined
