@@ -97,13 +97,6 @@ export const addTeamBlacklist = async (
 
       const targetUser = matchingUsers[0];
 
-      if (!targetUser) {
-        return {
-          statusCode: 404,
-          error: "Pengguna dengan NIM tersebut tidak ditemukan.",
-        };
-      }
-
       if (targetUser.id === leaderId) {
         return {
           statusCode: 400,
