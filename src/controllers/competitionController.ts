@@ -13,7 +13,7 @@ function prepareLombaHubData(data: LombaHubPreview) {
   const sourceUrl = data.sourceUrl.trim();
   const namaLomba = data.namaLomba.trim();
   const penyelenggara = data.penyelenggara?.trim() || "";
-  const infoPendaftaran = data.infoPendaftaran?.trim() || "";
+  const infoPendaftaran = data.infoPendaftaran?.trim() || null;
 
   if (!sourceUrl || sourceUrl.length > 191) {
     return {
@@ -41,12 +41,6 @@ function prepareLombaHubData(data: LombaHubPreview) {
 
   if (Number.isNaN(deadline.getTime())) {
     return { error: "Tanggal deadline tidak valid." };
-  }
-
-  if (!infoPendaftaran) {
-    return {
-      error: "Informasi lomba tidak ditemukan. Data tidak disimpan.",
-    };
   }
 
   return {
