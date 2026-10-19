@@ -156,7 +156,6 @@ export const getTeamDetail = async (
     const teamId = Number(req.params.id);
     const userId = Number(req.user?.userId);
 
-    // Validasi ID
     if (
       !Number.isSafeInteger(teamId) ||
       teamId <= 0 ||
@@ -180,14 +179,12 @@ export const getTeamDetail = async (
       },
     });
 
-    // Sembunyikan tim dari pengguna yang diblacklist.
     if (blacklistEntry) {
       return res.status(404).json({
         error: "Tim tidak ditemukan.",
       });
     }
 
-    // Ambil detail tim dan anggotanya.
     const team = await prisma.team.findUnique({
       where: { id: teamId },
       include: {
@@ -224,6 +221,244 @@ export const getTeamDetail = async (
 
     return res.status(500).json({
       error: "Terjadi kesalahan server saat mengambil data tim.",
+    });
+  }
+};
+
+export const getMyTeams = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  try {
+    const userId = Number(req.user?.userId);
+
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return res.status(401).json({
+        error: "Identitas pengguna tidak valid.",
+      });
+    }
+
+    const teams = await prisma.team.findMany({
+      where: {
+        leaderId: userId,
+      },
+      include: {
+        leader: {
+          select: {
+            id: true,
+            nama: true,
+          },
+        },
+        members: {
+          select: {
+            id: true,
+            role: true,
+            joinedAt: true,
+            user: {
+              select: {
+                id: true,
+                nama: true,
+                profile: {
+                  select: {
+                    jurusan: true,
+                    fotoProfilUrl: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const data = teams.map(({ _count, ...team }) => ({
+      ...team,
+      peranSaya: "LEADER",
+      jumlahAnggota: _count.members,
+      sisaKuota: Math.max(team.kuota - _count.members, 0),
+    }));
+
+    return res.status(200).json({
+      message: "Daftar tim yang Anda pimpin berhasil diambil.",
+      data,
+    });
+  } catch (error) {
+    console.error("Error getMyTeams:", error);
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server.",
+    });
+  }
+};
+
+export const getJoinedTeams = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  try {
+    const userId = Number(req.user?.userId);
+
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return res.status(401).json({
+        error: "Identitas pengguna tidak valid.",
+      });
+    }
+
+    const teams = await prisma.team.findMany({
+      where: {
+        members: {
+          some: {
+            userId,
+            role: "MEMBER",
+          },
+        },
+      },
+      include: {
+        leader: {
+          select: {
+            id: true,
+            nama: true,
+          },
+        },
+        members: {
+          select: {
+            id: true,
+            role: true,
+            joinedAt: true,
+            user: {
+              select: {
+                id: true,
+                nama: true,
+                profile: {
+                  select: {
+                    jurusan: true,
+                    fotoProfilUrl: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const data = teams.map(({ _count, ...team }) => ({
+      ...team,
+      peranSaya: "MEMBER",
+      jumlahAnggota: _count.members,
+      sisaKuota: Math.max(team.kuota - _count.members, 0),
+    }));
+
+    return res.status(200).json({
+      message: "Daftar tim yang Anda ikuti berhasil diambil.",
+      data,
+    });
+  } catch (error) {
+    console.error("Error getJoinedTeams:", error);
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server.",
+    });
+  }
+};
+
+export const getMyTeamJoinRequests = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  try {
+    const userId = Number(req.user?.userId);
+    const statusQuery = req.query.status;
+    const validStatuses = ["PENDING", "ACCEPTED", "REJECTED"];
+
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return res.status(401).json({
+        error: "Identitas pengguna tidak valid.",
+      });
+    }
+
+    if (
+      statusQuery !== undefined &&
+      (typeof statusQuery !== "string" || !validStatuses.includes(statusQuery))
+    ) {
+      return res.status(400).json({
+        error: "Filter status harus PENDING, ACCEPTED, atau REJECTED.",
+      });
+    }
+
+    const requests = await prisma.joinRequest.findMany({
+      where: {
+        team: {
+          leaderId: userId,
+        },
+        ...(typeof statusQuery === "string" ? { status: statusQuery } : {}),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nama: true,
+            profile: {
+              select: {
+                jurusan: true,
+                skill: true,
+                minat: true,
+                fotoProfilUrl: true,
+              },
+            },
+          },
+        },
+        team: {
+          select: {
+            id: true,
+            nama: true,
+            kompetisi: true,
+            kuota: true,
+            _count: {
+              select: {
+                members: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.status(200).json({
+      message: "Daftar join request untuk tim Anda berhasil diambil.",
+      data: requests.map((request) => ({
+        ...request,
+        jumlahAnggota: request.team._count.members,
+        sisaKuota: Math.max(
+          request.team.kuota - request.team._count.members,
+          0,
+        ),
+      })),
+    });
+  } catch (error) {
+    console.error("Error getMyTeamJoinRequests:", error);
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server.",
     });
   }
 };
