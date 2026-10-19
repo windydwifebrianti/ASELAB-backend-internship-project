@@ -118,8 +118,10 @@ model Team {
   id              Int      @id @default(autoincrement())
   nama            String
   deskripsi       String   @db.Text
-  kompetisi       String // Nama lomba yang akan diikuti
-  skillDibutuhkan Json? // Disimpan sebagai array JSON seperti halnya profil
+  kompetisi       String 
+  skillDibutuhkan Json? 
+  linkGrupWhatsapp   String? @db.VarChar(500)
+  linkChannelDiscord String? @db.VarChar(500)
   leaderId        Int
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
