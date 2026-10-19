@@ -62,36 +62,35 @@ export const getTeamRecommendations = async (
 
     if (userProfile && teams.length > 0) {
       const userSkills: string[] = Array.isArray(userProfile.skill)
-        ? (userProfile.skill as string[]).map((s) => s.toLowerCase())
-        : [];
-      const userMinat: string[] = Array.isArray(userProfile.minat)
-        ? (userProfile.minat as string[]).map((m) => m.toLowerCase())
+        ? (userProfile.skill as string[])
+            .filter((s) => typeof s === "string")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
         : [];
 
       const scoredTeams = teams.map((team) => {
-        let matchScore = 0;
         const teamSkillsReq: string[] = Array.isArray(team.skillDibutuhkan)
-          ? (team.skillDibutuhkan as string[]).map((s) => s.toLowerCase())
+          ? (team.skillDibutuhkan as string[])
+              .filter((s) => typeof s === "string")
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean)
           : [];
 
-        userSkills.forEach((userSkill) => {
-          if (teamSkillsReq.includes(userSkill)) matchScore += 2;
-        });
+        const matchedSkills = teamSkillsReq.filter((requiredSkill) =>
+          userSkills.includes(requiredSkill),
+        );
 
-        const teamDesc = team.deskripsi.toLowerCase();
-        userMinat.forEach((minat) => {
-          if (teamDesc.includes(minat)) matchScore += 1;
-        });
-
-        let persentase = Math.round((matchScore / 10) * 100);
-        if (persentase > 98) persentase = 98;
-        if (persentase < 10) persentase = 10;
+        const persentase =
+          teamSkillsReq.length > 0
+            ? Math.round((matchedSkills.length / teamSkillsReq.length) * 100)
+            : 0;
 
         const anggotaTerisi = team.members.length;
 
         return {
           ...team,
           kecocokan: `${persentase}%`,
+          persentaseKecocokan: persentase,
           jumlahAnggotaTeks: `${anggotaTerisi}/${team.kuota || 5} Anggota`,
         };
       });
