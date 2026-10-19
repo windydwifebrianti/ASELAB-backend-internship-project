@@ -11,7 +11,7 @@ export const addTeamBlacklist = async (
   try {
     const leaderId = Number(req.user?.userId);
     const teamId = Number(req.params.teamId);
-    const { nim } = req.body ?? {};
+    const { nama } = req.body ?? {};
 
     if (!Number.isSafeInteger(leaderId) || leaderId <= 0) {
       return res.status(401).json({
@@ -25,12 +25,11 @@ export const addTeamBlacklist = async (
       });
     }
 
-    if (typeof nim !== "string" || !nim.trim()) {
+    if (typeof nama !== "string" || !nama.trim()) {
       return res.status(400).json({
-        error: "NIM pengguna wajib diisi.",
+        error: "Nama pengguna wajib diisi.",
       });
     }
-
     const result = await prisma.$transaction(async (tx) => {
       const lockedTeams = await tx.$queryRaw<Array<{ id: number }>>`
         SELECT id
@@ -69,16 +68,34 @@ export const addTeamBlacklist = async (
         };
       }
 
-      const targetUser = await tx.user.findUnique({
+      const matchingUsers = await tx.user.findMany({
         where: {
-          nim: nim.trim(),
+          nama: nama.trim(),
         },
+        take: 2,
         select: {
           id: true,
           nim: true,
           nama: true,
         },
       });
+
+      if (matchingUsers.length === 0) {
+        return {
+          statusCode: 404,
+          error: "Pengguna dengan nama tersebut tidak ditemukan.",
+        };
+      }
+
+      if (matchingUsers.length > 1) {
+        return {
+          statusCode: 409,
+          error:
+            "Ada beberapa pengguna dengan nama tersebut. Pilih akun yang tepat agar tidak salah memasukkan pengguna ke blacklist.",
+        };
+      }
+
+      const targetUser = matchingUsers[0];
 
       if (!targetUser) {
         return {
