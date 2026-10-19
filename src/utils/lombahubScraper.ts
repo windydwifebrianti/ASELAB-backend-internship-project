@@ -496,7 +496,21 @@ export async function scrapeLombaHubDetail(
     3000,
   );
 
-  const description = extractEventDescription(pageText, namaLomba);
+  const extractedDescription = extractEventDescription(pageText, namaLomba);
+
+  const metadataDescription = cleanText(
+    $("meta[name='description']").attr("content") ||
+      $("meta[property='og:description']").attr("content") ||
+      "",
+  );
+
+  const description =
+    extractedDescription ||
+    (metadataDescription &&
+    metadataDescription.toLowerCase() !== namaLomba.toLowerCase()
+      ? metadataDescription
+      : null);
+
   const categoryTags = new Set<string>();
 
   $("a").each((_, element) => {
