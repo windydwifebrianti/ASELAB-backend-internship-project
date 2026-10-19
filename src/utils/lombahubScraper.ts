@@ -504,10 +504,16 @@ export async function scrapeLombaHubDetail(
       "",
   );
 
+  const isGenericMetadata =
+    /info lomba terbaru/i.test(metadataDescription) &&
+    /situs web informasi lomba/i.test(metadataDescription);
+
+  const isSameAsTitle =
+    metadataDescription.toLowerCase() === namaLomba.toLowerCase();
+
   const description =
     extractedDescription ||
-    (metadataDescription &&
-    metadataDescription.toLowerCase() !== namaLomba.toLowerCase()
+    (metadataDescription && !isGenericMetadata && !isSameAsTitle
       ? metadataDescription
       : null);
 
