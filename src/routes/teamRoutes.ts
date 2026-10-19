@@ -50,6 +50,12 @@ const router = Router();
  *                 type: string
  *                 nullable: true
  *                 example: "https://discord.gg/contoh-link"
+ *               kuota:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 100
+ *                 example: 5
+ *                 description: Maksimal total anggota tim, termasuk leader.
  *     responses:
  *       "201":
  *         description: Tim berhasil dibuat
@@ -102,6 +108,12 @@ router.post("/", verifyToken, createTeam);
  *                 type: string
  *                 nullable: true
  *                 example: "https://discord.gg/contoh-link"
+ *               kuota:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 100
+ *                 example: 5
+ *                 description: Maksimal total anggota tim, termasuk leader.
  *     responses:
  *       "200":
  *         description: Informasi tim berhasil diperbarui
