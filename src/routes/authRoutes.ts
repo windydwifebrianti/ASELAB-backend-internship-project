@@ -191,6 +191,10 @@ router.get("/profile", verifyToken, getProfile);
  *                 items:
  *                   type: string
  *                 example: ["Software Engineering"]
+ *               tentang:
+ *                 type: string
+ *                 nullable: true
+ *                 example: "Mahasiswa yang tertarik dengan Backend Development."
  *               pengalamanLomba:
  *                 type: string
  *                 example: Pernah mengikuti hackathon.
