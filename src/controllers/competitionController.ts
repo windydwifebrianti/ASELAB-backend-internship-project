@@ -10,44 +10,6 @@ import type { LombaHubPreview } from "../utils/lombahubScraper";
 const prisma = new PrismaClient();
 
 function prepareLombaHubData(data: LombaHubPreview) {
-  async function saveLombaHubData(data: LombaHubPreview) {
-    const prepared = prepareLombaHubData(data);
-
-    if ("error" in prepared) {
-      return {
-        ok: false as const,
-        sourceUrl: data.sourceUrl,
-        error: prepared.error,
-      };
-    }
-
-    const payload = prepared.payload;
-
-    const existing = await prisma.competition.findUnique({
-      where: {
-        sourceUrl: payload.sourceUrl,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    const competition = await prisma.competition.upsert({
-      where: {
-        sourceUrl: payload.sourceUrl,
-      },
-      create: payload,
-      update: payload,
-    });
-
-    return {
-      ok: true as const,
-      sourceUrl: payload.sourceUrl,
-      action: existing ? ("updated" as const) : ("created" as const),
-      competition,
-    };
-  }
-
   const sourceUrl = data.sourceUrl.trim();
   const namaLomba = data.namaLomba.trim();
   const penyelenggara = data.penyelenggara?.trim() || "";
@@ -103,6 +65,44 @@ function prepareLombaHubData(data: LombaHubPreview) {
       registrationUrl: data.registrationUrl?.trim() || null,
       gambarUrl: data.gambarUrl?.trim() || null,
     },
+  };
+}
+
+async function saveLombaHubData(data: LombaHubPreview) {
+  const prepared = prepareLombaHubData(data);
+
+  if ("error" in prepared) {
+    return {
+      ok: false as const,
+      sourceUrl: data.sourceUrl,
+      error: prepared.error,
+    };
+  }
+
+  const payload = prepared.payload;
+
+  const existing = await prisma.competition.findUnique({
+    where: {
+      sourceUrl: payload.sourceUrl,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const competition = await prisma.competition.upsert({
+    where: {
+      sourceUrl: payload.sourceUrl,
+    },
+    create: payload,
+    update: payload,
+  });
+
+  return {
+    ok: true as const,
+    sourceUrl: payload.sourceUrl,
+    action: existing ? ("updated" as const) : ("created" as const),
+    competition,
   };
 }
 
