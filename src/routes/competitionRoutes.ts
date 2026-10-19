@@ -4,6 +4,8 @@ import {
   getCompetitions,
   previewLombaHubCrawl,
   previewLombaHubDetail,
+  importLombaHubCrawl,
+  importLombaHubDetail,
 } from "../controllers/competitionController";
 
 const router = Router();
@@ -173,5 +175,76 @@ router.get("/lombahub/crawl-preview", verifyToken, previewLombaHubCrawl);
  *         description: Gagal mengambil halaman
  */
 router.post("/lombahub/scrape-preview", verifyToken, previewLombaHubDetail);
+
+/**
+ * @openapi
+ * /api/competitions/lombahub/crawl-import:
+ *   post:
+ *     tags: [Competitions]
+ *     summary: Crawling dan menyimpan lomba dari LombaHub
+ *     description: Mengambil beberapa halaman lomba dari LombaHub, memvalidasi datanya, lalu membuat atau memperbarui data kompetisi berdasarkan sourceUrl.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 8
+ *           default: 5
+ *         description: Jumlah halaman lomba yang diproses.
+ *     responses:
+ *       "200":
+ *         description: Proses crawling dan impor selesai. Periksa jumlah berhasil dan gagal.
+ *       "400":
+ *         description: Limit tidak valid.
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia.
+ *       "502":
+ *         description: Crawling LombaHub gagal.
+ */
+router.post("/lombahub/crawl-import", verifyToken, importLombaHubCrawl);
+
+/**
+ * @openapi
+ * /api/competitions/lombahub/scrape-import:
+ *   post:
+ *     tags: [Competitions]
+ *     summary: Scraping dan menyimpan satu lomba dari LombaHub
+ *     description: Mengambil detail satu lomba dari URL yang diberikan, memvalidasi data, lalu membuat atau memperbarui kompetisi berdasarkan sourceUrl.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - url
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 format: uri
+ *                 example: https://lombahub.com/kompetisi-lomba/limas-internasional-xxvi
+ *     responses:
+ *       "200":
+ *         description: Data lomba yang sudah ada berhasil diperbarui.
+ *       "201":
+ *         description: Lomba baru berhasil disimpan.
+ *       "400":
+ *         description: URL tidak valid atau kosong.
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia.
+ *       "422":
+ *         description: Data hasil scraping tidak lengkap.
+ *       "502":
+ *         description: Gagal mengambil detail lomba.
+ *       "500":
+ *         description: Gagal menyimpan data.
+ */
+router.post("/lombahub/scrape-import", verifyToken, importLombaHubDetail);
 
 export default router;
