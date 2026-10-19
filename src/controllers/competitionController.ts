@@ -371,3 +371,80 @@ export const importLombaHubDetail = async (
     });
   }
 };
+
+export const importLombaHubCrawl = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  try {
+    const limitRaw =
+      typeof req.query.limit === "string" ? req.query.limit : "5";
+
+    if (!/^\d+$/.test(limitRaw)) {
+      return res.status(400).json({
+        error: "Limit harus berupa angka bulat antara 1 dan 8.",
+      });
+    }
+
+    const limit = Number(limitRaw);
+
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 8) {
+      return res.status(400).json({
+        error: "Limit harus berupa angka bulat antara 1 dan 8.",
+      });
+    }
+
+    const crawled = await crawlLombaHubHomepage(limit);
+
+    const results: Array<{
+      ok: boolean;
+      sourceUrl: string;
+      action?: "created" | "updated";
+      competition?: any;
+      error?: string;
+    }> = [];
+
+    for (const item of crawled) {
+      if (!item.ok || !item.data) {
+        results.push({
+          ok: false,
+          sourceUrl: item.sourceUrl,
+          error: item.error || "Halaman lomba gagal di-scrape.",
+        });
+
+        continue;
+      }
+
+      try {
+        const result = await saveLombaHubData(item.data);
+        results.push(result);
+      } catch (error) {
+        console.error("Gagal menyimpan lomba:", item.sourceUrl, error);
+
+        results.push({
+          ok: false,
+          sourceUrl: item.sourceUrl,
+          error: "Gagal menyimpan lomba ke database.",
+        });
+      }
+    }
+
+    return res.status(200).json({
+      message: "Proses crawling dan impor selesai.",
+      total: results.length,
+      berhasil: results.filter((item) => item.ok).length,
+      dibuat: results.filter((item) => item.ok && item.action === "created")
+        .length,
+      diperbarui: results.filter((item) => item.ok && item.action === "updated")
+        .length,
+      gagal: results.filter((item) => !item.ok).length,
+      data: results,
+    });
+  } catch (error: any) {
+    console.error("Error importLombaHubCrawl:", error);
+
+    return res.status(502).json({
+      error: error?.message || "Crawling LombaHub gagal.",
+    });
+  }
+};
