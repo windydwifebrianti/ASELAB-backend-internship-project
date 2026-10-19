@@ -85,9 +85,12 @@ model Competition {
   biayaPendaftaran String?
   hadiah           String?
   tingkatLomba     String?
+  sourceUrl        String?  @unique @db.VarChar(191)
+  peserta          String?  @db.Text
+  registrationUrl  String?  @db.Text
+  gambarUrl        String?  @db.Text
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  sourceUrl        String?  @unique @db.VarChar(191)
 }
 
 // Tabel Moderasi (Report & Block)
