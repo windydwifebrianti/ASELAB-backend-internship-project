@@ -30,11 +30,12 @@ const router = Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [nim]
+ *             required:
+ *                - nama
  *             properties:
- *               nim:
+ *               nama:
  *                 type: string
- *                 example: "220009"
+ *                 example: "Dina Putri"
  *     responses:
  *       "201":
  *         description: Pengguna berhasil ditambahkan ke blacklist
