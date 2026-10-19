@@ -82,7 +82,7 @@ model Competition {
   deadline         DateTime
   infoPendaftaran  String   @db.Text
   ketentuan        String?  @db.Text
-  biayaPendaftaran String?
+  biayaPendaftaran String?  @db.Text
   hadiah           String?
   tingkatLomba     String?
   sourceUrl        String?  @unique @db.VarChar(191)
