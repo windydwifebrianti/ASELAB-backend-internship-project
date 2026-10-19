@@ -80,7 +80,7 @@ model Competition {
   penyelenggara    String
   kategori         String
   deadline         DateTime
-  infoPendaftaran  String   @db.Text
+  infoPendaftaran  String?  @db.Text
   ketentuan        String?  @db.Text
   biayaPendaftaran String?  @db.Text
   hadiah           String?
