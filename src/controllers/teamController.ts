@@ -10,7 +10,14 @@ export const createTeam = async (
 ): Promise<any> => {
   try {
     const leaderId = req.user.userId;
-    const { nama, deskripsi, kompetisi, skillDibutuhkan } = req.body;
+    const {
+      nama,
+      deskripsi,
+      kompetisi,
+      skillDibutuhkan,
+      linkGrupWhatsapp,
+      linkChannelDiscord,
+    } = req.body;
 
     if (
       typeof nama !== "string" ||
@@ -19,6 +26,19 @@ export const createTeam = async (
     ) {
       return res.status(400).json({
         error: "Nama, deskripsi, dan kompetisi wajib diisi.",
+      });
+    }
+
+    if (
+      (linkGrupWhatsapp !== undefined &&
+        linkGrupWhatsapp !== null &&
+        typeof linkGrupWhatsapp !== "string") ||
+      (linkChannelDiscord !== undefined &&
+        linkChannelDiscord !== null &&
+        typeof linkChannelDiscord !== "string")
+    ) {
+      return res.status(400).json({
+        error: "Link WhatsApp dan Discord harus berupa teks.",
       });
     }
 
@@ -39,6 +59,14 @@ export const createTeam = async (
           deskripsi: deskripsiBersih,
           kompetisi: kompetisiBersih,
           skillDibutuhkan: skillDibutuhkan || [],
+          linkGrupWhatsapp:
+            typeof linkGrupWhatsapp === "string"
+              ? linkGrupWhatsapp.trim() || null
+              : null,
+          linkChannelDiscord:
+            typeof linkChannelDiscord === "string"
+              ? linkChannelDiscord.trim() || null
+              : null,
           leaderId: Number(leaderId),
         },
       });
