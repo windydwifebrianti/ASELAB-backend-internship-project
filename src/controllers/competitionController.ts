@@ -321,3 +321,53 @@ export const previewLombaHubDetail = async (
     });
   }
 };
+
+export const importLombaHubDetail = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<any> => {
+  const { url } = req.body ?? {};
+
+  if (typeof url !== "string" || !url.trim()) {
+    return res.status(400).json({
+      error: "URL detail lomba wajib diisi.",
+    });
+  }
+
+  let preview: LombaHubPreview;
+
+  try {
+    preview = await scrapeLombaHubDetail(url.trim());
+  } catch (error: any) {
+    return res.status(502).json({
+      error: error?.message || "Gagal mengambil detail lomba.",
+    });
+  }
+
+  try {
+    const result = await saveLombaHubData(preview);
+
+    if (!result.ok) {
+      return res.status(422).json({
+        message: "Data lomba belum memenuhi syarat untuk disimpan.",
+        error: result.error,
+        sourceUrl: result.sourceUrl,
+      });
+    }
+
+    return res.status(result.action === "created" ? 201 : 200).json({
+      message:
+        result.action === "created"
+          ? "Lomba berhasil disimpan."
+          : "Data lomba yang sudah ada berhasil diperbarui.",
+      action: result.action,
+      data: result.competition,
+    });
+  } catch (error) {
+    console.error("Error importLombaHubDetail:", error);
+
+    return res.status(500).json({
+      error: "Scraping berhasil, tetapi penyimpanan ke database gagal.",
+    });
+  }
+};
