@@ -37,7 +37,7 @@ const router = Router();
  *               kompetisi:
  *                 type: string
  *                 example: Hackathon Nasional
- *                *               skillDibutuhkan:
+ *               skillDibutuhkan:
  *                 type: array
  *                 items:
  *                   type: string
@@ -90,7 +90,7 @@ router.post("/", verifyToken, createTeam);
  *                 type: string
  *               kompetisi:
  *                 type: string
- *                *               skillDibutuhkan:
+ *               skillDibutuhkan:
  *                 type: array
  *                 items:
  *                   type: string

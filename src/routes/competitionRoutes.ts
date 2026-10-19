@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { getCompetitions } from "../controllers/competitionController";
 import { verifyToken } from "../middleware/authMiddleware";
 import {
   getCompetitions,
