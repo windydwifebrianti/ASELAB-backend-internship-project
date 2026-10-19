@@ -108,7 +108,14 @@ export const updateTeam = async (
       });
     }
 
-    const { nama, deskripsi, kompetisi, skillDibutuhkan } = req.body;
+    const {
+      nama,
+      deskripsi,
+      kompetisi,
+      skillDibutuhkan,
+      linkGrupWhatsapp,
+      linkChannelDiscord,
+    } = req.body;
 
     const team = await prisma.team.findUnique({ where: { id: teamId } });
 
@@ -120,13 +127,45 @@ export const updateTeam = async (
       });
     }
 
+    const teamWithLinks = team as typeof team & {
+      linkGrupWhatsapp: string | null;
+      linkChannelDiscord: string | null;
+    };
+
+    if (
+      (linkGrupWhatsapp !== undefined &&
+        linkGrupWhatsapp !== null &&
+        typeof linkGrupWhatsapp !== "string") ||
+      (linkChannelDiscord !== undefined &&
+        linkChannelDiscord !== null &&
+        typeof linkChannelDiscord !== "string")
+    ) {
+      return res.status(400).json({
+        error: "Link WhatsApp dan Discord harus berupa teks.",
+      });
+    }
+
     const updatedTeam = await prisma.team.update({
       where: { id: teamId },
       data: {
         nama: nama || team.nama,
         deskripsi: deskripsi || team.deskripsi,
         kompetisi: kompetisi || team.kompetisi,
-        skillDibutuhkan: skillDibutuhkan || team.skillDibutuhkan,
+        skillDibutuhkan: skillDibutuhkan ?? team.skillDibutuhkan,
+
+        linkGrupWhatsapp:
+          linkGrupWhatsapp === undefined
+            ? teamWithLinks.linkGrupWhatsapp
+            : typeof linkGrupWhatsapp === "string"
+              ? linkGrupWhatsapp.trim() || null
+              : null,
+
+        linkChannelDiscord:
+          linkChannelDiscord === undefined
+            ? teamWithLinks.linkChannelDiscord
+            : typeof linkChannelDiscord === "string"
+              ? linkChannelDiscord.trim() || null
+              : null,
       },
     });
 
