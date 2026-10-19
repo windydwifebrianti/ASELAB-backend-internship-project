@@ -413,12 +413,23 @@ export async function scrapeLombaHubDetail(
     150,
   );
 
-  const hadiah = extractField(
+  const hadiahMetadata = extractField(
     pageText,
     ["Total Hadiah"],
     ["Peserta", "Penyelenggara", "Open Registration"],
     250,
   );
+
+  const adaKlaimHadiahJutaan = /TOTAL PRIZES WORTH MILLIONS OF RUPIAH/i.test(
+    pageText,
+  );
+
+  const hadiah =
+    adaKlaimHadiahJutaan &&
+    hadiahMetadata &&
+    /rp\s*10(?:[.]?000)\b/i.test(hadiahMetadata)
+      ? null
+      : hadiahMetadata;
 
   const peserta = extractField(
     pageText,
@@ -536,7 +547,7 @@ export async function scrapeLombaHubDetail(
     deadline: parseDeadline(deadlineText),
     peserta,
     hadiah,
-    biayaPendaftaran: biayaFinal,
+    biayaPendaftaran: biayaFinal?.replace(/\s*💳\s*$/, "").trim() || null,
     tingkatLomba,
     infoPendaftaran: description || null,
     ketentuan,
