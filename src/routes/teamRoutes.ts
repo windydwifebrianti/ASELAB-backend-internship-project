@@ -5,6 +5,9 @@ import {
   updateTeam,
   deleteTeam,
   getTeamDetail,
+  getMyTeams,
+  getJoinedTeams,
+  getMyTeamJoinRequests,
 } from "../controllers/teamController";
 
 const router = Router();
@@ -152,5 +155,129 @@ router.delete("/:id", verifyToken, deleteTeam);
  *         description: Kesalahan server
  */
 router.get("/:id", verifyToken, getTeamDetail);
+
+/**
+ * @openapi
+ * /api/teams/my-teams:
+ *   get:
+ *     tags: [Teams]
+ *     summary: Mengambil daftar tim yang dipimpin pengguna login
+ *     description: Mengambil semua tim yang dipimpin oleh pengguna berdasarkan token autentikasi.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: Daftar tim berhasil diambil
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Daftar tim yang Anda pimpin berhasil diambil.
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       nama:
+ *                         type: string
+ *                         example: Tim Backend ASELAB
+ *                       peranSaya:
+ *                         type: string
+ *                         example: LEADER
+ *                       jumlahAnggota:
+ *                         type: integer
+ *                         example: 3
+ *                       sisaKuota:
+ *                         type: integer
+ *                         example: 2
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.get("/my-teams", verifyToken, getMyTeams);
+
+/**
+ * @openapi
+ * /api/teams/joined-teams:
+ *   get:
+ *     tags: [Teams]
+ *     summary: Mengambil daftar tim yang diikuti pengguna login
+ *     description: Mengambil tim tempat pengguna login terdaftar sebagai anggota, bukan sebagai ketua tim.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: Daftar tim yang diikuti berhasil diambil
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Daftar tim yang Anda ikuti berhasil diambil.
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 2
+ *                       nama:
+ *                         type: string
+ *                         example: Tim AI
+ *                       peranSaya:
+ *                         type: string
+ *                         example: MEMBER
+ *                       jumlahAnggota:
+ *                         type: integer
+ *                         example: 4
+ *                       sisaKuota:
+ *                         type: integer
+ *                         example: 1
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.get("/joined-teams", verifyToken, getJoinedTeams);
+
+/**
+ * @openapi
+ * /api/teams/my-teams/join-requests:
+ *   get:
+ *     tags: [Teams]
+ *     summary: Mengambil join request yang masuk ke tim milik pengguna login
+ *     description: Mengambil permintaan bergabung untuk tim yang dipimpin oleh pengguna login.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, ACCEPTED, REJECTED]
+ *         description: Filter status join request
+ *         example: PENDING
+ *     responses:
+ *       "200":
+ *         description: Daftar join request berhasil diambil
+ *       "400":
+ *         description: Status filter tidak valid
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.get("/my-teams/join-requests", verifyToken, getMyTeamJoinRequests);
 
 export default router;
