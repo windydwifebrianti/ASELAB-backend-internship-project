@@ -891,6 +891,124 @@ export const downloadCV = async (
   }
 };
 
+export const downloadApplicantCV = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const requesterId = Number(req.user?.userId);
+    const targetUserId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(requesterId) || requesterId <= 0) {
+      return res.status(401).json({
+        error: "Identitas pengguna tidak valid.",
+      });
+    }
+
+    if (!Number.isSafeInteger(targetUserId) || targetUserId <= 0) {
+      return res.status(400).json({
+        error: "ID pemilik CV tidak valid.",
+      });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: {
+        id: targetUserId,
+      },
+      select: {
+        id: true,
+        profile: {
+          select: {
+            cvPath: true,
+          },
+        },
+      },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({
+        error: "Pengguna tidak ditemukan.",
+      });
+    }
+
+    const isOwner = requesterId === targetUserId;
+
+    if (!isOwner) {
+      const pendingRequest = await prisma.joinRequest.findFirst({
+        where: {
+          userId: targetUserId,
+          status: "PENDING",
+          team: {
+            is: {
+              leaderId: requesterId,
+            },
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!pendingRequest) {
+        return res.status(403).json({
+          error:
+            "Akses ditolak. CV hanya dapat dilihat pemilik atau leader yang sedang meninjau Join Request.",
+        });
+      }
+    }
+
+    const cvFilename = targetUser.profile?.cvPath;
+
+    if (!cvFilename) {
+      return res.status(404).json({
+        error: "CV pengguna belum tersedia.",
+      });
+    }
+
+    if (path.basename(cvFilename) !== cvFilename) {
+      return res.status(400).json({
+        error: "Lokasi file CV tidak valid.",
+      });
+    }
+
+    const cvDirectory = path.resolve(process.cwd(), "uploads", "cv");
+
+    const filePath = path.resolve(cvDirectory, cvFilename);
+
+    if (!filePath.startsWith(cvDirectory + path.sep)) {
+      return res.status(400).json({
+        error: "Lokasi file CV tidak valid.",
+      });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        error: "File CV tidak ditemukan.",
+      });
+    }
+
+    res.download(filePath, "CV.pdf", (error) => {
+      if (error) {
+        console.error("Error downloadApplicantCV:", error);
+
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: "Gagal mengunduh CV.",
+          });
+        }
+      }
+    });
+
+    return res;
+  } catch (error) {
+    console.error("Error downloadApplicantCV:", error);
+
+    return res.status(500).json({
+      error: "Terjadi kesalahan server saat mengunduh CV.",
+    });
+  }
+};
+
 export const deleteCV = async (
   req: AuthRequest,
   res: Response,
