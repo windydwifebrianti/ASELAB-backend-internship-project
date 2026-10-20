@@ -778,9 +778,17 @@ export const getPublicProfile = async (
       });
     }
 
+    const { cvPath, ...safeProfile } = userProfile.profile;
+
     return res.status(200).json({
       message: "Berhasil mengambil profil pengguna.",
-      data: userProfile,
+      data: {
+        ...userProfile,
+        profile: {
+          ...safeProfile,
+          cvUploaded: Boolean(cvPath),
+        },
+      },
     });
   } catch (error) {
     console.error("Error di getPublicProfile:", error);
