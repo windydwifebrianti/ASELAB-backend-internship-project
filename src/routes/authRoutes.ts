@@ -410,6 +410,43 @@ router.get("/profile/cv", verifyToken, downloadCV);
 
 /**
  * @openapi
+ * /api/auth/profile/{id}/cv:
+ *   get:
+ *     tags: [Profile]
+ *     summary: Mengunduh CV pengguna
+ *     description: Pemilik CV selalu dapat mengakses CV sendiri. Selain itu, hanya leader tim yang memiliki Join Request PENDING dari pemilik CV yang boleh mengaksesnya.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID pengguna pemilik CV.
+ *     responses:
+ *       "200":
+ *         description: File CV berhasil ditemukan.
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       "400":
+ *         description: ID atau lokasi file tidak valid.
+ *       "401":
+ *         description: Token tidak tersedia atau identitas tidak valid.
+ *       "403":
+ *         description: Pengguna tidak memiliki izin untuk melihat CV.
+ *       "404":
+ *         description: Pengguna atau file CV tidak ditemukan.
+ *       "500":
+ *         description: Kesalahan server saat mengunduh CV.
+ */
+router.get("/profile/:id/cv", verifyToken, downloadApplicantCV);
+
+/**
+ * @openapi
  * /api/auth/profile/cv:
  *   delete:
  *     tags: [Profile]
