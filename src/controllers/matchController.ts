@@ -45,7 +45,12 @@ export const getTeamRecommendations = async (
       where: {
         ...filterConditions,
         leaderId: { not: userId },
-        swipes: { none: { userId: userId } },
+        swipes: {
+          none: {
+            userId,
+            action: "LIKE",
+          },
+        },
 
         blacklists: {
           none: {
