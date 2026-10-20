@@ -11,6 +11,7 @@ import {
   getRegisterSession,
   uploadCV,
   downloadCV,
+  downloadApplicantCV,
   deleteCV,
   uploadProfileImage,
 } from "../controllers/authController";
