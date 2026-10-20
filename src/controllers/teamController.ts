@@ -18,6 +18,7 @@ export const createTeam = async (
       linkGrupWhatsapp,
       linkChannelDiscord,
       kuota,
+      blacklistUserIds,
     } = req.body;
 
     if (
@@ -89,6 +90,26 @@ export const createTeam = async (
           role: "LEADER",
         },
       });
+
+      if (Array.isArray(blacklistUserIds) && blacklistUserIds.length > 0) {
+        const cleanUserIds = Array.from(new Set(blacklistUserIds))
+          .map(Number)
+          .filter(
+            (id) =>
+              Number.isSafeInteger(id) && id > 0 && id !== Number(leaderId),
+          );
+
+        if (cleanUserIds.length > 0) {
+          await (tx as any).teamBlacklist.createMany({
+            data: cleanUserIds.map((uid) => ({
+              teamId: team.id,
+              blockedUserId: uid,
+              createdById: Number(leaderId),
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
 
       return team;
     });

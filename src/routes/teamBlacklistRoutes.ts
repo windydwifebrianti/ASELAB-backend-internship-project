@@ -4,9 +4,36 @@ import {
   addTeamBlacklist,
   getTeamBlacklist,
   removeTeamBlacklist,
+  searchUsersForBlacklist,
 } from "../controllers/teamBlacklistController";
 
 const router = Router();
+
+/**
+ * @openapi
+ * /api/teams/users/search:
+ *   get:
+ *     tags: [Team Blacklist]
+ *     summary: Mencari user untuk ditambahkan ke blacklist
+ *     description: Endpoint ini digunakan oleh leader tim untuk mencari mahasiswa lain berdasarkan nama atau NIM.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Query pencarian berdasarkan nama atau NIM
+ *     responses:
+ *       "200":
+ *         description: Hasil pencarian user berhasil dikembalikan
+ *       "401":
+ *         description: Token tidak valid
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.get("/users/search", verifyToken, searchUsersForBlacklist);
 
 /**
  * @openapi
