@@ -47,7 +47,7 @@ export const getTeamRecommendations = async (
         leaderId: { not: userId },
         swipes: {
           none: {
-            userId,
+            userId: userId,
             action: "LIKE",
           },
         },
@@ -62,11 +62,10 @@ export const getTeamRecommendations = async (
         leader: { select: { nama: true } },
         members: { select: { id: true } },
         swipes: {
-          where: { userId },
+          where: { userId: userId },
           select: { action: true },
         },
       },
-      take: 50,
     });
 
     if (userProfile && teams.length > 0) {
@@ -78,6 +77,10 @@ export const getTeamRecommendations = async (
         : [];
 
       const scoredTeams = teams.map((team) => {
+        const { swipes, ...teamData } = team;
+
+        const sudahDiPass = swipes.some((swipe) => swipe.action === "PASS");
+
         const teamSkillsReq: string[] = Array.isArray(team.skillDibutuhkan)
           ? (team.skillDibutuhkan as string[])
               .filter((s) => typeof s === "string")
@@ -97,30 +100,38 @@ export const getTeamRecommendations = async (
         const anggotaTerisi = team.members.length;
 
         return {
-          ...team,
+          ...teamData,
+          sudahDiPass,
           kecocokan: `${persentase}%`,
           persentaseKecocokan: persentase,
           jumlahAnggotaTeks: `${anggotaTerisi}/${team.kuota || 5} Anggota`,
         };
       });
 
+      let recommendations = scoredTeams;
       if (skill && skill !== "Semua") {
         const searchedSkill = String(skill).toLowerCase();
-        teams = scoredTeams.filter(
+        recommendations = scoredTeams.filter(
           (t) =>
             Array.isArray(t.skillDibutuhkan) &&
             (t.skillDibutuhkan as string[]).some((s) =>
               s.toLowerCase().includes(searchedSkill),
             ),
         );
-      } else {
-        teams = scoredTeams;
       }
 
-      teams.sort(
-        (a: any, b: any) => parseInt(b.kecocokan) - parseInt(a.kecocokan),
-      );
-      teams = teams.slice(0, 20);
+      recommendations.sort((a, b) => {
+        if (a.sudahDiPass !== b.sudahDiPass) {
+          return a.sudahDiPass ? 1 : -1;
+        }
+
+        return parseInt(b.kecocokan, 10) - parseInt(a.kecocokan, 10);
+      });
+
+      return res.status(200).json({
+        message: "Rekomendasi tim berhasil diambil",
+        data: recommendations,
+      });
     }
 
     return res
@@ -172,7 +183,11 @@ export const swipeTeam = async (
     const swipe = await prisma.teamSwipe.upsert({
       where: { userId_teamId: { userId, teamId: teamIdNumber } },
       update: { action },
-      create: { userId, teamId, action },
+      create: {
+        userId,
+        teamId: teamIdNumber,
+        action,
+      },
     });
 
     return res
