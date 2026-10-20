@@ -159,33 +159,6 @@ router.delete("/:id", verifyToken, deleteTeam);
 
 /**
  * @openapi
- * /api/teams/{id}:
- *   get:
- *     tags: [Teams]
- *     summary: Melihat detail tim dan anggotanya
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID tim
- *     responses:
- *       "200":
- *         description: Detail tim berhasil diambil
- *       "401":
- *         description: Token tidak valid atau tidak tersedia
- *       "404":
- *         description: Tim tidak ditemukan
- *       "500":
- *         description: Kesalahan server
- */
-router.get("/:id", verifyToken, getTeamDetail);
-
-/**
- * @openapi
  * /api/teams/my-teams:
  *   get:
  *     tags: [Teams]
@@ -307,5 +280,32 @@ router.get("/joined-teams", verifyToken, getJoinedTeams);
  *         description: Kesalahan server
  */
 router.get("/my-teams/join-requests", verifyToken, getMyTeamJoinRequests);
+
+/**
+ * @openapi
+ * /api/teams/{id}:
+ *   get:
+ *     tags: [Teams]
+ *     summary: Melihat detail tim dan anggotanya
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID tim
+ *     responses:
+ *       "200":
+ *         description: Detail tim berhasil diambil
+ *       "401":
+ *         description: Token tidak valid atau tidak tersedia
+ *       "404":
+ *         description: Tim tidak ditemukan
+ *       "500":
+ *         description: Kesalahan server
+ */
+router.get("/:id", verifyToken, getTeamDetail);
 
 export default router;
