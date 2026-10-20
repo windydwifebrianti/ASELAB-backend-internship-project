@@ -61,6 +61,10 @@ export const getTeamRecommendations = async (
       include: {
         leader: { select: { nama: true } },
         members: { select: { id: true } },
+        swipes: {
+          where: { userId },
+          select: { action: true },
+        },
       },
       take: 50,
     });
