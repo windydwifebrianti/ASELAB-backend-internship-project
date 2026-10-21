@@ -212,27 +212,58 @@ const MONTHS: Record<string, number> = {
 function parseDeadline(text: string | null): string | null {
   if (!text) return null;
 
-  let day: number;
-  let month: number;
-  let year: number;
+  let year = 0;
+  let month = 0;
+  let day = 0;
+
+  const iso = text.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
 
   const numeric = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
 
-  if (numeric) {
-    day = Number(numeric[1]);
-    month = Number(numeric[2]);
+  const namedDayFirst = text.match(
+    /\b(\d{1,2})\s+([A-Za-z]+)\.?,?\s+(\d{4})\b/i,
+  );
+
+  const namedMonthFirst = text.match(
+    /\b([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})\b/i,
+  );
+
+  if (iso) {
+    year = Number(iso[1]);
+    month = Number(iso[2]);
+    day = Number(iso[3]);
+  } else if (numeric) {
+    const first = Number(numeric[1]);
+    const second = Number(numeric[2]);
+
     year = Number(numeric[3]);
+
+    // Ambiguitas diselesaikan memakai format Indonesia DD/MM/YYYY.
+    if (first > 12) {
+      day = first;
+      month = second;
+    } else if (second > 12) {
+      month = first;
+      day = second;
+    } else {
+      day = first;
+      month = second;
+    }
+  } else if (namedDayFirst) {
+    day = Number(namedDayFirst[1]);
+    month = MONTHS[namedDayFirst[2].toLowerCase()] || 0;
+    year = Number(namedDayFirst[3]);
+  } else if (namedMonthFirst) {
+    month = MONTHS[namedMonthFirst[1].toLowerCase()] || 0;
+    day = Number(namedMonthFirst[2]);
+    year = Number(namedMonthFirst[3]);
   } else {
-    const named = text.match(/\b(\d{1,2})\s+([A-Za-z]+)\.?,?\s+(\d{4})\b/i);
-
-    if (!named) return null;
-
-    day = Number(named[1]);
-    month = MONTHS[named[2].toLowerCase()] || 0;
-    year = Number(named[3]);
+    return null;
   }
 
-  if (!month || day < 1 || day > 31) return null;
+  if (!year || !month || day < 1 || day > 31 || month < 1 || month > 12) {
+    return null;
+  }
 
   const date = new Date(Date.UTC(year, month - 1, day));
 
@@ -245,7 +276,7 @@ function parseDeadline(text: string | null): string | null {
   }
 
   return [
-    year,
+    String(year),
     String(month).padStart(2, "0"),
     String(day).padStart(2, "0"),
   ].join("-");
