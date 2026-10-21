@@ -116,68 +116,6 @@ router.get("/", verifyToken, getCompetitions);
 
 /**
  * @openapi
- * /api/competitions/lombahub/crawl-preview:
- *   get:
- *     tags: [Competition]
- *     summary: Melakukan preview crawling beranda LombaHub
- *     description: Mengambil URL dari beranda dan mengekstrak detail maksimal delapan lomba. Data belum disimpan ke database.
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 8
- *           default: 5
- *     responses:
- *       "200":
- *         description: Preview crawling berhasil
- *       "400":
- *         description: Limit tidak valid
- *       "401":
- *         description: Token tidak valid
- *       "502":
- *         description: Crawling gagal
- */
-router.get("/lombahub/crawl-preview", verifyToken, previewLombaHubCrawl);
-
-/**
- * @openapi
- * /api/competitions/lombahub/scrape-preview:
- *   post:
- *     tags: [Competition]
- *     summary: Mengambil preview detail lomba LombaHub
- *     description: Mengekstrak informasi dari satu halaman detail tanpa menyimpan data.
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [url]
- *             properties:
- *               url:
- *                 type: string
- *                 format: uri
- *                 example: https://lombahub.com/kompetisi-lomba/limas-internasional-xxvi
- *     responses:
- *       "200":
- *         description: Preview detail berhasil
- *       "400":
- *         description: URL tidak valid
- *       "401":
- *         description: Token tidak valid
- *       "502":
- *         description: Gagal mengambil halaman
- */
-router.post("/lombahub/scrape-preview", verifyToken, previewLombaHubDetail);
-
-/**
- * @openapi
  * /api/competitions/lombahub/crawl-import:
  *   post:
  *     tags: [Competitions]
@@ -246,5 +184,7 @@ router.post("/lombahub/crawl-import", verifyToken, importLombaHubCrawl);
  *         description: Gagal menyimpan data.
  */
 router.post("/lombahub/scrape-import", verifyToken, importLombaHubDetail);
+
+router.post("/lombahub/crawl-import", verifyToken, importLombaHubCrawl);
 
 export default router;
