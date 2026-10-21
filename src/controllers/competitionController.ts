@@ -224,10 +224,15 @@ export const getCompetitions = async (
     const todayJakarta = `${getDatePart("year")}-${getDatePart("month")}-${getDatePart("day")}`;
 
     const competitionsWithStatus = competitions.map((competition) => {
-      const deadlineDate = new Date(competition.deadline);
-      const deadlineKey = deadlineDate.toISOString().slice(0, 10);
+      let statusLomba: string;
 
-      const statusLomba = deadlineKey < todayJakarta ? "KEDALUWARSA" : "AKTIF";
+      if (!competition.deadline) {
+        statusLomba = "TANGGAL_BELUM_DIKETAHUI";
+      } else {
+        const deadlineKey = competition.deadline.toISOString().slice(0, 10);
+
+        statusLomba = deadlineKey < todayJakarta ? "KEDALUWARSA" : "AKTIF";
+      }
 
       return {
         ...competition,
