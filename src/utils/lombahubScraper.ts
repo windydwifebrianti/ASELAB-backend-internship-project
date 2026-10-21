@@ -576,6 +576,34 @@ export async function scrapeLombaHubDetail(
   };
 }
 
+function createFallbackLomba(sourceUrl: string): LombaHubPreview {
+  const slug =
+    new URL(sourceUrl).pathname.split("/").filter(Boolean).pop() ?? "";
+
+  const namaLomba = decodeURIComponent(slug)
+    .replace(/[-_]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+  return {
+    sourceUrl,
+    namaLomba: namaLomba || "Lomba dari LombaHub",
+    penyelenggara: null,
+    kategori: null,
+    deadline: null,
+    peserta: null,
+    hadiah: null,
+    biayaPendaftaran: null,
+    tingkatLomba: null,
+    infoPendaftaran: null,
+    ketentuan: null,
+    registrationUrl: null,
+    gambarUrl: null,
+  };
+}
+
 export async function crawlLombaHubHomepage(limit = 5): Promise<CrawlItem[]> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 8) {
     throw new Error("Limit crawling harus antara 1 dan 8.");
@@ -632,11 +660,15 @@ export async function crawlLombaHubHomepage(limit = 5): Promise<CrawlItem[]> {
         ok: true,
         data,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       results.push({
         sourceUrl,
         ok: false,
-        error: error?.message || "Gagal mengambil halaman detail.",
+        data: createFallbackLomba(sourceUrl),
+        error:
+          error instanceof Error
+            ? error.message
+            : "Gagal mengambil halaman detail.",
       });
     }
   }
