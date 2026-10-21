@@ -77,18 +77,22 @@ model Profile {
 model Competition {
   id               Int      @id @default(autoincrement())
   namaLomba        String
-  penyelenggara    String
-  kategori         String
-  deadline         DateTime
+  penyelenggara    String?
+  kategori         String?
+  deadline         DateTime?
+
   infoPendaftaran  String?  @db.Text
   ketentuan        String?  @db.Text
   biayaPendaftaran String?  @db.Text
+  
   hadiah           String?
   tingkatLomba     String?
+
   sourceUrl        String?  @unique @db.VarChar(191)
   peserta          String?  @db.Text
   registrationUrl  String?  @db.Text
   gambarUrl        String?  @db.Text
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
