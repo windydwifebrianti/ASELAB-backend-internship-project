@@ -9,11 +9,44 @@ import type { LombaHubPreview } from "../utils/lombahubScraper";
 
 const prisma = new PrismaClient();
 
+function getFallbackTitle(sourceUrl: string): string {
+  const slug =
+    new URL(sourceUrl).pathname.split("/").filter(Boolean).pop() ?? "";
+
+  return decodeURIComponent(slug)
+    .replace(/[-_]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function parseDeadlineForDatabase(value: string | null): Date | null {
+  if (!value) return null;
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
 function prepareLombaHubData(data: LombaHubPreview) {
   const sourceUrl = data.sourceUrl.trim();
-  const namaLomba = data.namaLomba.trim();
-  const penyelenggara = data.penyelenggara?.trim() || "";
-  const infoPendaftaran = data.infoPendaftaran?.trim() || null;
 
   if (!sourceUrl || sourceUrl.length > 191) {
     return {
@@ -21,36 +54,45 @@ function prepareLombaHubData(data: LombaHubPreview) {
     };
   }
 
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(sourceUrl);
+  } catch {
+    return { error: "URL sumber tidak valid." };
+  }
+
+  if (
+    parsedUrl.protocol !== "https:" ||
+    !["lombahub.com", "www.lombahub.com"].includes(
+      parsedUrl.hostname.toLowerCase(),
+    ) ||
+    !parsedUrl.pathname.startsWith("/kompetisi-lomba/")
+  ) {
+    return {
+      error: "URL harus merupakan halaman detail lomba LombaHub.",
+    };
+  }
+
+  const namaLomba = data.namaLomba.trim() || getFallbackTitle(sourceUrl);
+
   if (!namaLomba) {
-    return { error: "Nama lomba tidak ditemukan." };
-  }
-
-  if (!penyelenggara) {
     return {
-      error: "Penyelenggara tidak ditemukan. Data tidak disimpan.",
+      error: "Nama lomba tidak dapat ditentukan.",
     };
   }
 
-  if (!data.deadline || !/^\d{4}-\d{2}-\d{2}$/.test(data.deadline)) {
-    return {
-      error: "Deadline tidak ditemukan atau format tanggal tidak valid.",
-    };
-  }
-
-  const deadline = new Date(`${data.deadline}T00:00:00.000Z`);
-
-  if (Number.isNaN(deadline.getTime())) {
-    return { error: "Tanggal deadline tidak valid." };
-  }
+  parsedUrl.hash = "";
+  parsedUrl.search = "";
 
   return {
     payload: {
-      sourceUrl,
+      sourceUrl: parsedUrl.toString(),
       namaLomba,
-      penyelenggara,
-      kategori: data.kategori?.trim() || "Lain-lain",
-      deadline,
-      infoPendaftaran,
+      penyelenggara: data.penyelenggara?.trim() || null,
+      kategori: data.kategori?.trim() || null,
+      deadline: parseDeadlineForDatabase(data.deadline),
+      infoPendaftaran: data.infoPendaftaran?.trim() || null,
       ketentuan: data.ketentuan?.trim() || null,
       biayaPendaftaran: data.biayaPendaftaran?.trim() || null,
       hadiah: data.hadiah?.trim() || null,
@@ -62,7 +104,7 @@ function prepareLombaHubData(data: LombaHubPreview) {
   };
 }
 
-async function saveLombaHubData(data: LombaHubPreview) {
+async function saveLombaHubData(data: LombaHubPreview, detailBerhasil = true) {
   const prepared = prepareLombaHubData(data);
 
   if ("error" in prepared) {
@@ -75,21 +117,52 @@ async function saveLombaHubData(data: LombaHubPreview) {
 
   const payload = prepared.payload;
 
+  // Ambil record lengkap agar informasi lama bisa dipertahankan.
   const existing = await prisma.competition.findUnique({
     where: {
       sourceUrl: payload.sourceUrl,
     },
-    select: {
-      id: true,
-    },
   });
+
+  const updatePayload = {
+    namaLomba: detailBerhasil
+      ? payload.namaLomba
+      : (existing?.namaLomba ?? payload.namaLomba),
+
+    penyelenggara: payload.penyelenggara ?? existing?.penyelenggara ?? null,
+
+    kategori: payload.kategori ?? existing?.kategori ?? null,
+
+    deadline: payload.deadline ?? existing?.deadline ?? null,
+
+    infoPendaftaran:
+      payload.infoPendaftaran ?? existing?.infoPendaftaran ?? null,
+
+    ketentuan: payload.ketentuan ?? existing?.ketentuan ?? null,
+
+    biayaPendaftaran:
+      payload.biayaPendaftaran ?? existing?.biayaPendaftaran ?? null,
+
+    hadiah: payload.hadiah ?? existing?.hadiah ?? null,
+
+    tingkatLomba: payload.tingkatLomba ?? existing?.tingkatLomba ?? null,
+
+    peserta: payload.peserta ?? existing?.peserta ?? null,
+
+    registrationUrl:
+      payload.registrationUrl ?? existing?.registrationUrl ?? null,
+
+    gambarUrl: payload.gambarUrl ?? existing?.gambarUrl ?? null,
+  };
 
   const competition = await prisma.competition.upsert({
     where: {
       sourceUrl: payload.sourceUrl,
     },
+
     create: payload,
-    update: payload,
+
+    update: updatePayload,
   });
 
   return {
@@ -99,7 +172,6 @@ async function saveLombaHubData(data: LombaHubPreview) {
     competition,
   };
 }
-
 export const getCompetitions = async (
   req: AuthRequest,
   res: Response,
@@ -401,29 +473,45 @@ export const importLombaHubCrawl = async (
       action?: "created" | "updated";
       competition?: any;
       error?: string;
+      warning?: string;
     }> = [];
 
     for (const item of crawled) {
-      if (!item.ok || !item.data) {
+      // Fallback sudah dibuat di lombahubScraper.ts.
+      // Hanya lewati jika data benar-benar tidak tersedia.
+      if (!item.data) {
         results.push({
           ok: false,
           sourceUrl: item.sourceUrl,
-          error: item.error || "Halaman lomba gagal di-scrape.",
+          error: item.error || "Data lomba tidak tersedia.",
         });
 
         continue;
       }
 
       try {
-        const result = await saveLombaHubData(item.data);
-        results.push(result);
-      } catch (error) {
+        const result = await saveLombaHubData(item.data, item.ok);
+
+        results.push({
+          ...result,
+          ...(item.ok
+            ? {}
+            : {
+                warning:
+                  item.error ||
+                  "Detail gagal diambil; data dasar tetap dicoba disimpan.",
+              }),
+        });
+      } catch (error: unknown) {
         console.error("Gagal menyimpan lomba:", item.sourceUrl, error);
 
         results.push({
           ok: false,
           sourceUrl: item.sourceUrl,
-          error: "Gagal menyimpan lomba ke database.",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Gagal menyimpan lomba ke database.",
         });
       }
     }
