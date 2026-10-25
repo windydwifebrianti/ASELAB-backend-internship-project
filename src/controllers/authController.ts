@@ -2,22 +2,14 @@ import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { cekStatusMahasiswa } from "../utils/nimfinder";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import { AuthRequest } from "../middleware/authMiddleware";
+import { sendEmail } from "../utils/mailer";
 
 const prisma = new PrismaClient();
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
 
 const generateOtp = (): string => {
   return crypto.randomInt(100000, 1000000).toString();
@@ -80,12 +72,11 @@ export const requestRegisterOtp = async (
         },
       });
 
-      await transporter.sendMail({
-        from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
-        to: updatedRegistration.email,
-        subject: "Kode Verifikasi OTP Anda",
-        html: `<p>Kode OTP Anda adalah: <b>${newCode}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
-      });
+      await sendEmail(
+        updatedRegistration.email,
+        "Kode Verifikasi OTP Anda",
+        `<p>Kode OTP Anda adalah: <b>${newCode}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
+      );
 
       return res.status(200).json({
         message: "OTP baru berhasil dikirim ke email Anda.",
@@ -213,12 +204,11 @@ export const requestRegisterOtp = async (
       },
     });
 
-    await transporter.sendMail({
-      from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
-      to: normalizedEmail,
-      subject: "Kode Verifikasi OTP Anda",
-      html: `<p>Kode OTP Anda adalah: <b>${kodeOtp}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
-    });
+    await sendEmail(
+      normalizedEmail,
+      "Kode Verifikasi OTP Anda",
+      `<p>Kode OTP Anda adalah: <b>${kodeOtp}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
+    );
 
     return res.status(200).json({
       message: "OTP berhasil dikirim ke email Anda.",
@@ -274,12 +264,11 @@ export const requestOtp = async (
       },
     });
 
-    await transporter.sendMail({
-      from: `"Tim Matching System" <${process.env.EMAIL_USER}>`,
-      to: normalizedEmail,
-      subject: "Kode Verifikasi OTP Anda",
-      html: `<p>Kode OTP Anda adalah: <b>${kodeOtp}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
-    });
+    await sendEmail(
+      normalizedEmail,
+      "Kode Verifikasi OTP Anda",
+      `<p>Kode OTP Anda adalah: <b>${kodeOtp}</b></p><p>Kode ini akan kedaluwarsa dalam 5 menit. Jangan bagikan kode ini kepada siapapun.</p>`,
+    );
 
     return res.status(200).json({
       message: "OTP berhasil dikirim ke email Anda.",
